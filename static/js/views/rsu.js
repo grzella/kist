@@ -14,7 +14,7 @@ async function renderRsu(el) {
     if (nextVestPln) {
       parts.push(`In the ${r.next_vest_month} window ${fmt.num(r.shares_next_vest, 0)} shares vest ≈ ${fmt.pln(nextVestPln)} at the current price.`);
     }
-    const loan = debtsData.debts.find((d) => d.name.toLowerCase().includes("loan") && d.balance > 0);
+    const loan = debtsData.debts.find((d) => ["mortgage","loan","home","house"].some((k) => d.name.toLowerCase().includes(k)) && d.balance > 0);
     if (loan && nextVestPln) {
       parts.push(
         `sell the vest right away and pay down the loan — balance ${fmt.pln(loan.balance)}, ` +

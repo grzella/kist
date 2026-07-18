@@ -149,7 +149,7 @@ MODULES = [
      "views": ["rsu"], "default": False},
     {"id": "business", "label": "Side business",     "icon": "🚁",
      "desc": "Revenue/costs of a side business or self-employment.",
-     "views": ["firma"], "default": False},
+     "views": ["business"], "default": False},
     {"id": "career",   "label": "Career tracker",    "icon": "💼",
      "desc": "Inbound job offers, market barometer, commit-activity tracker.",
      "views": ["offers", "career", "commits"], "default": False},
@@ -844,8 +844,8 @@ def recommendation():
     if not goals:
         recs.append({
             "area": "goals", "priority": 5,
-            "text": "You have no active goal — add one in the Goals tab (e.g. an apartment "
-                    "abroad), and job offers and the savings pace will start counting toward it."})
+            "text": "You have no active goal — add one in the Goals tab (e.g. a home "
+                    "down payment), and job offers and the savings pace will start counting toward it."})
     if cfg.get("monthly_savings") in (None, 0):
         recs.append({
             "area": "goals", "priority": 5,
@@ -1073,7 +1073,7 @@ def ensure_monthly_snapshot():
     _audit("snapshot", None, "add", {"net_worth": net})
 
 
-# ---------- firma (działalności business ledger) ----------
+# ---------- side business (revenue/cost ledger) ----------
 
 BIZ_KINDS = ("koszt", "przychód")
 BIZ_CATEGORIES = ("sprzęt", "marketing", "software", "ubezpieczenie",
@@ -1202,7 +1202,7 @@ def delete_action(action_id):
     eb._exec("delete from actions where id = ?", (action_id,))
 
 
-# ---------- firma: performance marketing (Supabase — marketing agents) ----------
+# ---------- business: performance marketing (Supabase — marketing agents) ----------
 
 def _parse_pyjson(raw):
     """analysis_reports store python-dict strings; try json then literal_eval."""
@@ -1220,7 +1220,7 @@ def _parse_pyjson(raw):
         return None
 
 
-def firma_marketing():
+def business_marketing():
     """Weekly ads intelligence from the marketing agents (ads-collector/-analyst)."""
     import market
     try:
@@ -1269,7 +1269,7 @@ CF_DEFAULTS = {  # generyczne wartości startowe — realne trzymane w bazie (gi
     "cf_safety_buffer": 30000,     # bufor bezpieczeństwa (dół salda płynnego)
     "cf_liquid_start": 0,          # startowe środki płynne
     "cf_bonus_month": 9,           # miesiąc bonusu
-    "cf_sweep_target": "loan",     # dokąd trafia nadwyżka: loan | property | none
+    "cf_sweep_target": "loan",     # where surplus goes: loan | property | none
 }
 
 
@@ -1290,8 +1290,8 @@ def cashflow(months=15):
     bonus = _num(get_setting("annual_bonus_net")) or 20000
 
     debts = list_debts()["debts"]
-    loan = next((d for d in debts if "loan" in d["name"].lower()
-                 ), None)
+    loan = next((d for d in debts if any(k in d["name"].lower()
+                 for k in ("mortgage", "loan", "home", "house"))), None)
     loan_bal = loan["balance"] if loan else 0
     loan_principal = (loan.get("principal_month") if loan else 0) or 0
     loan_freed = loan.get("monthly_cost_total", 0) if loan else 0
@@ -1877,7 +1877,7 @@ def data_inventory():
     ins_c, _ = cnt_last("insurance_policies")
     brief_asof, brief_has = setting_asof("analysis_market_brief")
     vest_asof, vest_has = setting_asof("rsu_vest_analysis", "vest_month")
-    prop_asof, prop_has = setting_asof("analysis_property_location")
+    prop_asof, prop_has = setting_asof("analysis_property")
     try:
         import market as _mkt
         sync = _mkt.last_sync()
@@ -1927,7 +1927,7 @@ def data_inventory():
                  "monthly", bar_last, bar_c, note=f"{bar_c} role-demand points"),
             item("Vest analysis (RSU)", "claude", "app_settings: rsu_vest_analysis",
                  "per vest (~quarterly)", vest_asof, note="earnings, guidance, targets" if vest_has else "none"),
-            item("Goal analysis (e.g. property)", "claude", "app_settings: analysis_property_location",
+            item("Goal analysis (e.g. property)", "claude", "app_settings: analysis_property",
                  "on demand / rarely", prop_asof, note="deep analysis" if prop_has else "none"),
          ]},
         {"key": "manual_reg", "title": "\U0001F7E1 Manual \u2014 regular (what we want to reduce)",
@@ -2095,8 +2095,8 @@ def fire_projection():
     # po spłacie kredytu uwolniona rata dorzuca do oszczędności (uproszczenie: +3200 od startu+~1 rok)
     freed = 0
     try:
-        loan = next((d for d in list_debts()["debts"] if "loan" in d["name"].lower()
-                     ), None)
+        loan = next((d for d in list_debts()["debts"] if any(k in d["name"].lower()
+                     for k in ("mortgage", "loan", "home", "house"))), None)
         freed = loan.get("monthly_cost_total", 0) if loan else 0
     except Exception:
         freed = 0
@@ -2146,9 +2146,9 @@ def fire_projection():
             real_cross = label_at(m)
         bal = bal * (1 + real_r) + contrib + (freed if m >= 12 else 0)
 
-    # --- prognoza cel/Hiszpania (wkład 50%) ---
+    # --- property-goal projection (50% down payment) ---
     ig = next((x for x in goals if any(k in x["name"].lower()
-              for k in ("wło", "property", "garda", "hiszp", "andaluz"))), None)
+              for k in ("propert", "house", "home", "apartment", "flat", "down payment", "mortgage"))), None)
     property_target = (ig and ig.get("target_amount")) or 200000
     property_start = (ig and ig.get("current_amount")) or 0
     delay = 5

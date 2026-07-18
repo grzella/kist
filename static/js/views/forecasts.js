@@ -62,7 +62,7 @@ async function renderForecasts(el) {
       ${scenarioCard("After the loan is paid off — what gets freed", [
         ["Installment + insurance", fmt.pln(loanFreed) + "/mo", "pos"],
         ["Rent (stays as pure income)", fmt.pln(0) + "/mo", "pos"],
-        ["Property unencumbered", "yes — profile ready for the Italian mortgage"],
+        ["Property unencumbered", "yes — profile ready for a property mortgage"],
       ], "From this moment all surpluses build the goal contribution")}
     </div>
 
