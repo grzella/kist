@@ -451,6 +451,24 @@ def rag_reindex():
     return jsonify({"chunks": rag.reindex()})
 
 
+@app.get("/api/backup/status")
+def backup_status():
+    import backup
+    return jsonify(backup.status())
+
+
+@app.post("/api/backup/config")
+def backup_config():
+    import backup
+    return jsonify(backup.set_destination(request.get_json(force=True).get("dir", "")))
+
+
+@app.post("/api/backup/run")
+def backup_run():
+    import backup
+    return jsonify(backup.create_backup())
+
+
 @app.get("/api/security-review")
 def security_review_last():
     import json as _json
