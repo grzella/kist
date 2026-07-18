@@ -1,0 +1,9 @@
+# personal data — NEVER committed
+.finance/
+.env
+backups/
+# python / os
+__pycache__/
+*.pyc
+.DS_Store
+*.log
