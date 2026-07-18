@@ -46,7 +46,7 @@ async function renderForecasts(el) {
   el.innerHTML = `
     <h2>Prognozy — Twoje scenariusze</h2>
     <div class="muted" style="margin-bottom:12px">Liczone na żywych danych: salda kredytów,
-      kurs TEAM, tempo oszczędzania. Zgodne ze strategią: spłata kredytu + refinansowanie równolegle.</div>
+      kurs akcji RSU, tempo oszczędzania. Zgodne ze strategią: spłata kredytu + refinansowanie równolegle.</div>
     <div class="grid cols-2">
       ${scenarioCard("Wrzesień: bonus ~80 000 zł → nadpłata kredytu", op(bonusLodz),
         lodz ? `Saldo kredytu: ${fmt.pln(lodz.balance)} · rata ${fmt.pln(lodz.minimum_payment)}` : "")}

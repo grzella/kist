@@ -2,6 +2,10 @@ async function renderCurrency(el) {
   const [w, fx] = await Promise.all([
     api.get("/api/wealth/summary").catch(() => ({ items: [] })),
     api.get("/api/fx-analysis").catch(() => ({ pairs: [] }))]);
+  const bandsByPair = {};
+  await Promise.all(["USDPLN=X", "EURPLN=X", "EURUSD=X"].map(async (t) => {
+    bandsByPair[t] = await api.get("/api/forecast/bands/" + encodeURIComponent(t)).catch(() => null);
+  }));
 
   const pairs = fx.pairs || [];
   const byPair = {};
@@ -33,6 +37,9 @@ async function renderCurrency(el) {
       <div class="value" style="font-size:1.5em"><b>${fmt.num(p.last, 3)}</b></div>
       <div class="mt" style="padding:6px 10px;border-radius:6px;background:#00000022">
         <b class="${p.vcls}">${p.verdict}</b></div>
+      ${(() => { const b = bandsByPair[p.pair]; if (!b || !b.horizons) return ""; 
+        const h1 = b.horizons.find((h) => h.days === 21), h3 = b.horizons.find((h) => h.days === 63);
+        return `<div class="muted mt" style="font-size:.82em">📏 zakres (nie kierunek): 1M <b>${fmt.num(h1.p10, 2)}–${fmt.num(h1.p90, 2)}</b> · 3M <b>${fmt.num(h3.p10, 2)}–${fmt.num(h3.p90, 2)}</b>${h1.calibrated ? " 🧠" : ""}</div>`; })()}
       <div class="row mt" style="gap:14px;flex-wrap:wrap;font-size:.82em">
         <span title="pozycja po korzystnej stronie zakresu 52 tyg.">🎯 korzystny poziom: <b>${p.fav_pos}/100</b></span>
         <span>📈 trend: <b>${p.trend}</b></span>
@@ -58,7 +65,7 @@ async function renderCurrency(el) {
         ${Object.entries(exp).map(([c, v]) => `<span>${c}: <b>${fmt.pln(v)}</b>
           <span class="muted">(${Math.round(100 * v / totalExp)}%)</span></span>`).join("")}
       </div>
-      <div class="muted mt" style="font-size:.85em">USD głównie z RSU/TEAM + gotówka USD. EUR rośnie z akumulacją pod dom.
+      <div class="muted mt" style="font-size:.85em">USD głównie z RSU + gotówka USD. EUR rośnie z akumulacją pod dom.
         Naturalny hedge: część vestów USD→EUR bezpośrednio na wkład (z pominięciem PLN).</div>
     </div>
 

@@ -40,6 +40,12 @@ def _ensure_cache():
             currency text default 'USD', primary key (ticker, date))""")
         conn.execute("""create table if not exists market_meta (
             key text primary key, value text)""")
+        conn.execute("""create table if not exists forecast_track (
+            id integer primary key autoincrement,
+            made_on text not null, ticker text not null, horizon_days integer not null,
+            base_close real, sigma_daily real, p10 real, p50 real, p90 real,
+            realized_close real, realized_on text, inside integer, resid_z real,
+            unique (made_on, ticker, horizon_days))""")
         conn.commit()
 
 
@@ -516,7 +522,7 @@ def rsu_advanced():
     ticker = grant["ticker"]
     hist = prices(ticker, days=400)
     if not hist:
-        return {"error": "brak danych TEAM — odśwież cache rynkowy"}
+        return {"error": "brak danych kursu RSU — odśwież cache rynkowy"}
     closes = [r["close"] for r in hist]
     last = closes[-1]
     usdpln_hist = prices("USDPLN=X", days=10)
@@ -753,3 +759,141 @@ def _fx_backtest(closes, fav_high, horizon=21):
 
 def fx_analysis():
     return {"pairs": [_fx_one(c) for c in _FX_PAIRS]}
+
+
+# ---------- samouczący dziennik prognoz (conformal) ----------
+
+def _ft_rows(q, params=()):
+    with db.get_conn() as conn:
+        cur = conn.execute(q, params)
+        cols = [c[0] for c in cur.description] if cur.description else []
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def forecast_residuals(ticker):
+    """Znormalizowane błędy rozliczonych prognoz per horyzont (do kalibracji)."""
+    rows = _ft_rows("select horizon_days, resid_z from forecast_track "
+                    "where ticker=? and resid_z is not null "
+                    "order by made_on desc limit 400", (ticker,))
+    out = {}
+    for r in rows:
+        out.setdefault(r["horizon_days"], []).append(r["resid_z"])
+    return out
+
+
+def record_and_score_forecasts():
+    """Codzienny cykl samouczenia: (1) rozlicz dojrzałe prognozy przeciw
+    realnym cenom, (2) zapisz dzisiejsze pasma dla całej watchlisty.
+    Wywoływane przy odświeżeniu danych i z health()."""
+    import forecast_models as fm
+    _ensure_cache()
+    tickers = [t["ticker"] for t in get_watchlist()]
+    scored = recorded = 0
+    for tk in tickers:
+        hist = prices(tk, days=600)
+        if len(hist) < 60:
+            continue
+        closes = [h["close"] for h in hist]
+        dates = [h["date"] for h in hist]
+        idx = {d: i for i, d in enumerate(dates)}
+        # 1) rozlicz dojrzałe
+        for row in _ft_rows("select * from forecast_track where ticker=? "
+                            "and realized_close is null", (tk,)):
+            i0 = idx.get(row["made_on"])
+            if i0 is None or i0 + row["horizon_days"] >= len(closes):
+                continue
+            i1 = i0 + row["horizon_days"]
+            real = closes[i1]
+            base, sig = row["base_close"], row["sigma_daily"]
+            if not base or not sig:
+                continue
+            move = math.log(real / base)
+            s_n = sig * math.sqrt(row["horizon_days"])
+            with db.get_conn() as conn:
+                conn.execute("update forecast_track set realized_close=?, realized_on=?, "
+                             "inside=?, resid_z=? where id=?",
+                             (real, dates[i1],
+                              1 if row["p10"] <= real <= row["p90"] else 0,
+                              round(move / s_n, 4) if s_n else None, row["id"]))
+                conn.commit()
+            scored += 1
+        # 2) zapisz dzisiejsze pasma (kalibrowane własnymi błędami, gdy są)
+        today = dates[-1]
+        bands = fm.short_term_bands_calibrated(closes, forecast_residuals(tk))
+        if not bands:
+            continue
+        sig_d = bands["ewma_vol_daily_pct"] / 100.0
+        for h in bands["horizons"]:
+            with db.get_conn() as conn:
+                conn.execute("insert or ignore into forecast_track "
+                             "(made_on, ticker, horizon_days, base_close, sigma_daily, p10, p50, p90) "
+                             "values (?,?,?,?,?,?,?,?)",
+                             (today, tk, h["days"], bands["last_close"], sig_d,
+                              h["p10"], h["p50"], h["p90"]))
+                conn.commit()
+            recorded += 1
+    return {"scored": scored, "recorded": recorded, "tickers": len(tickers)}
+
+
+def forecast_selfscore():
+    """Skuteczność własna: pokrycie pasm per horyzont (cel ~80%) + liczność."""
+    rows = _ft_rows("select horizon_days h, count(*) n, sum(inside) k "
+                    "from forecast_track where inside is not null group by horizon_days")
+    out = {"horizons": [], "total_scored": 0}
+    for r in rows:
+        cov = round(r["k"] / r["n"] * 100, 1) if r["n"] else None
+        out["horizons"].append({"days": r["h"], "scored": r["n"], "coverage_pct": cov,
+                                "target_pct": 80,
+                                "verdict": "ok" if cov and 70 <= cov <= 92 else "kalibruje się"})
+        out["total_scored"] += r["n"]
+    pend = _ft_rows("select count(*) c from forecast_track where inside is null")
+    out["pending"] = pend[0]["c"] if pend else 0
+    return out
+
+
+def ticker_bands(ticker):
+    """Pasma short-term dla tickera, samo-kalibrowane gdy mamy dość rozliczeń."""
+    import forecast_models as fm
+    hist = prices(ticker, days=600)
+    closes = [h["close"] for h in hist]
+    if len(closes) < 60:
+        return {"error": "za mało historii"}
+    out = fm.short_term_bands_calibrated(closes, forecast_residuals(ticker))
+    out["coverage"] = fm.short_term_coverage_backtest(closes, 21)
+    return out
+
+
+def backfill_forecasts(step=5):
+    """Jednorazowe zasilenie dziennika: prognozy walk-forward wstecz po historii
+    (tylko dane dostępne w danym dniu), od razu rozliczane. Dzięki temu
+    kalibracja konformalna startuje z realnym materiałem, zamiast czekać kwartał."""
+    import forecast_models as fm
+    _ensure_cache()
+    added = 0
+    for t in get_watchlist():
+        tk = t["ticker"]
+        hist = prices(tk, days=600)
+        closes = [h["close"] for h in hist]
+        dates = [h["date"] for h in hist]
+        if len(closes) < 140:
+            continue
+        for i in range(100, len(closes) - 5, step):
+            window = closes[:i + 1]
+            bands = fm.short_term_bands(window)
+            if not bands:
+                continue
+            sig_d = bands["ewma_vol_daily_pct"] / 100.0
+            for h in bands["horizons"]:
+                if i + h["days"] >= len(closes):
+                    continue
+                with db.get_conn() as conn:
+                    cur = conn.execute(
+                        "insert or ignore into forecast_track "
+                        "(made_on, ticker, horizon_days, base_close, sigma_daily, p10, p50, p90) "
+                        "values (?,?,?,?,?,?,?,?)",
+                        (dates[i], tk, h["days"], window[-1], sig_d,
+                         h["p10"], h["p50"], h["p90"]))
+                    conn.commit()
+                    added += cur.rowcount
+    score = record_and_score_forecasts()
+    return {"backfilled": added, **score}
