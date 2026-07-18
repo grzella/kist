@@ -28,9 +28,10 @@ function securityReviewHtml(rev) {
 }
 
 async function renderControl(el) {
-  const [d, rev] = await Promise.all([
+  const [d, rev, ai] = await Promise.all([
     api.get("/api/health"),
     api.get("/api/security-review").catch(() => ({})),
+    api.get("/api/llm/config").catch(() => null),
   ]);
   const s = d.summary;
   const vColor = { ok: "#3ecf8e", warn: "#ffd166", error: "#ff5c5c" };
@@ -78,6 +79,25 @@ async function renderControl(el) {
       </div>
     </div>
 
+    ${ai ? `<div class="card mt" style="border-left:4px solid ${ai.ai_mode === "both" ? "#b78cff" : "#3ecf8e"}">
+      <h3 style="margin-top:0">🤖 AI mode
+        <span class="badge" style="background:${ai.ai_mode === "both" ? "#b78cff22;color:#b78cff" : "#3ecf8e22;color:#3ecf8e"}">${ai.ai_mode === "both" ? "local + cloud" : "local only"}</span></h3>
+      <div class="muted" style="font-size:.85em;margin-bottom:8px">How the app answers AI questions. Default is the local model only (fully private).
+        "Local + cloud" asks BOTH and shows the answers side by side — best result from the comparison, but
+        <b class="neg">the cloud sends your prompt to Anthropic</b>, so enable it deliberately (not for sensitive figures).</div>
+      <div class="row" style="gap:16px;flex-wrap:wrap">
+        <label style="cursor:pointer"><input type="radio" name="aiMode" value="local" ${ai.ai_mode !== "both" ? "checked" : ""}>
+          🔒 Local only <span class="muted" style="font-size:.85em">(${ai.local.online ? "🟢 " + ai.local.model : "🔴 offline — " + (ai.local.hint || "")})</span></label>
+        <label style="cursor:pointer"><input type="radio" name="aiMode" value="both" ${ai.ai_mode === "both" ? "checked" : ""} ${ai.cloud.online ? "" : "disabled"}>
+          🔒+☁️ Local + Claude <span class="muted" style="font-size:.85em">(${ai.cloud.online ? "🟢 " + ai.cloud.model : "🔴 no key — " + (ai.cloud.hint || "")})</span></label>
+      </div>
+      <div class="row mt" style="gap:8px">
+        <input id="aiPrompt" placeholder="ask both models… (e.g. categorize: WHOLE FOODS 187)" style="flex:1">
+        <button class="primary" id="aiAsk">Ask</button>
+      </div>
+      <div id="aiOut" class="mt"></div>
+    </div>` : ""}
+
     <div class="card mt" style="border-left:4px solid ${secColor}">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <h3 style="margin:0">🔐 Security &amp; tests
@@ -116,6 +136,28 @@ async function renderControl(el) {
   document.getElementById("demoToggle").addEventListener("click", () => toggleDemo(!demoOn()));
   document.getElementById("langPl").addEventListener("click", () => langSet("pl"));
   document.getElementById("langEn").addEventListener("click", () => langSet("en"));
+  document.querySelectorAll('input[name="aiMode"]').forEach((r) =>
+    r.addEventListener("change", (e) =>
+      api.post("/api/llm/config", { ai_mode: e.target.value }).then(() => route())));
+  const aiAsk = document.getElementById("aiAsk");
+  if (aiAsk) {
+    aiAsk.addEventListener("click", async () => {
+      const prompt = document.getElementById("aiPrompt").value.trim();
+      if (!prompt) return;
+      const out = document.getElementById("aiOut");
+      aiAsk.disabled = true; out.innerHTML = '<div class="muted">Asking…</div>';
+      try {
+        const r = await api.post("/api/llm/ask", { prompt });
+        const card = (label, res, col) => res ? `<div class="card" style="border-left:3px solid ${col};margin:0">
+          <div style="font-weight:600;font-size:.85em">${label}</div>
+          <div style="white-space:pre-wrap;font-size:.9em">${res.ok ? res.text : '<span class="neg">offline / no answer</span>'}</div></div>` : "";
+        out.innerHTML = `<div class="grid ${r.cloud ? "cols-2" : ""}">
+          ${card("🔒 " + (r.local.label || "local"), r.local, "#3ecf8e")}
+          ${r.cloud ? card("☁️ " + (r.cloud.label || "Claude"), r.cloud, "#b78cff") : ""}</div>`;
+      } catch (e) { out.innerHTML = `<div class="neg">Error: ${e.message}</div>`; }
+      finally { aiAsk.disabled = false; }
+    });
+  }
   document.getElementById("secRun").addEventListener("click", async (e) => {
     const btn = e.target;
     btn.disabled = true;

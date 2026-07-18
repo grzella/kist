@@ -402,6 +402,39 @@ def llm_chat():
     return jsonify({"ok": out is not None, "text": out})
 
 
+@app.get("/api/llm/config")
+def llm_config():
+    import llm_local, llm_cloud
+    mode = planner.get_setting("ai_mode") or "local"
+    return jsonify({"ai_mode": mode, "local": llm_local.status(), "cloud": llm_cloud.status()})
+
+
+@app.post("/api/llm/config")
+def llm_config_save():
+    mode = request.get_json(force=True).get("ai_mode", "local")
+    if mode not in ("local", "both"):
+        mode = "local"
+    planner.set_settings({"ai_mode": mode})
+    return jsonify({"ai_mode": mode})
+
+
+@app.post("/api/llm/ask")
+def llm_ask():
+    """Ask a question per the AI mode: 'local' = local model only;
+    'both' = local AND Claude (for comparison — best result from the pair)."""
+    import llm_local, llm_cloud
+    b = request.get_json(force=True)
+    prompt, system = b.get("prompt", ""), b.get("system")
+    mode = planner.get_setting("ai_mode") or "local"
+    out = {"mode": mode}
+    lt = llm_local.chat(prompt, system=system)
+    out["local"] = {"ok": lt is not None, "text": lt, "label": llm_local.status().get("model", "local")}
+    if mode == "both":
+        ct = llm_cloud.chat(prompt, system=system)
+        out["cloud"] = {"ok": ct is not None, "text": ct, "label": llm_cloud.status().get("model", "Claude")}
+    return jsonify(out)
+
+
 @app.get("/api/security-review")
 def security_review_last():
     import json as _json
