@@ -28,10 +28,11 @@ function securityReviewHtml(rev) {
 }
 
 async function renderControl(el) {
-  const [d, rev, ai] = await Promise.all([
+  const [d, rev, ai, ragStatus] = await Promise.all([
     api.get("/api/health"),
     api.get("/api/security-review").catch(() => ({})),
     api.get("/api/llm/config").catch(() => null),
+    api.get("/api/rag/status").catch(() => null),
   ]);
   const s = d.summary;
   const vColor = { ok: "#3ecf8e", warn: "#ffd166", error: "#ff5c5c" };
@@ -96,6 +97,10 @@ async function renderControl(el) {
         <button class="primary" id="aiAsk">Ask</button>
       </div>
       <div id="aiOut" class="mt"></div>
+      ${ragStatus ? `<div class="row mt" style="gap:10px;align-items:center;font-size:.85em;padding-top:8px;border-top:1px solid #2a2f45">
+        <span>🔎 Local RAG: <b>${ragStatus.chunks}</b> chunks <span class="muted">(${ragStatus.engine})</span></span>
+        <button id="ragReindex">Reindex</button>
+        <span class="muted">${ragStatus.hint || "AI questions are automatically grounded in your own data"}</span></div>` : ""}
     </div>` : ""}
 
     <div class="card mt" style="border-left:4px solid ${secColor}">
@@ -156,6 +161,13 @@ async function renderControl(el) {
           ${r.cloud ? card("☁️ " + (r.cloud.label || "Claude"), r.cloud, "#b78cff") : ""}</div>`;
       } catch (e) { out.innerHTML = `<div class="neg">Error: ${e.message}</div>`; }
       finally { aiAsk.disabled = false; }
+    });
+  }
+  const ragBtn = document.getElementById("ragReindex");
+  if (ragBtn) {
+    ragBtn.addEventListener("click", async () => {
+      ragBtn.disabled = true; ragBtn.textContent = "Indexing…";
+      try { await api.post("/api/rag/reindex", {}); } finally { route(); }
     });
   }
   document.getElementById("secRun").addEventListener("click", async (e) => {

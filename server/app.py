@@ -422,18 +422,33 @@ def llm_config_save():
 def llm_ask():
     """Ask a question per the AI mode: 'local' = local model only;
     'both' = local AND Claude (for comparison — best result from the pair)."""
-    import llm_local, llm_cloud, finance_prompt
+    import llm_local, llm_cloud, finance_prompt, rag
     b = request.get_json(force=True)
     prompt = b.get("prompt", "")
     system = b.get("system") or finance_prompt.SYSTEM
     mode = planner.get_setting("ai_mode") or "local"
-    out = {"mode": mode}
-    lt = llm_local.chat(prompt, system=system)
+    # Local RAG: ground the question in your own data (offline, BM25). No hits — no change.
+    ctx = rag.context_for(prompt) if b.get("rag", True) else ""
+    ask = (ctx + "\n\nQuestion: " + prompt) if ctx else prompt
+    out = {"mode": mode, "rag_used": bool(ctx)}
+    lt = llm_local.chat(ask, system=system)
     out["local"] = {"ok": lt is not None, "text": lt, "label": llm_local.status().get("model", "local")}
     if mode == "both":
-        ct = llm_cloud.chat(prompt, system=system)
+        ct = llm_cloud.chat(ask, system=system)
         out["cloud"] = {"ok": ct is not None, "text": ct, "label": llm_cloud.status().get("model", "Claude")}
     return jsonify(out)
+
+
+@app.get("/api/rag/status")
+def rag_status():
+    import rag
+    return jsonify(rag.status())
+
+
+@app.post("/api/rag/reindex")
+def rag_reindex():
+    import rag
+    return jsonify({"chunks": rag.reindex()})
 
 
 @app.get("/api/security-review")
