@@ -28,11 +28,12 @@ function securityReviewHtml(rev) {
 }
 
 async function renderControl(el) {
-  const [d, rev, ai, ragStatus] = await Promise.all([
+  const [d, rev, ai, ragStatus, bk] = await Promise.all([
     api.get("/api/health"),
     api.get("/api/security-review").catch(() => ({})),
     api.get("/api/llm/config").catch(() => null),
     api.get("/api/rag/status").catch(() => null),
+    api.get("/api/backup/status").catch(() => null),
   ]);
   const s = d.summary;
   const vColor = { ok: "#3ecf8e", warn: "#ffd166", error: "#ff5c5c" };
@@ -103,6 +104,26 @@ async function renderControl(el) {
         <span class="muted">${ragStatus.hint || "AI questions are automatically grounded in your own data"}</span></div>` : ""}
     </div>` : ""}
 
+    ${bk ? `<div class="card mt" style="border-left:4px solid #4c8dff">
+      <h3 style="margin-top:0">💾 Data backup
+        <span class="badge" style="background:${bk.configured ? "#3ecf8e22;color:#3ecf8e" : "#ffd16622;color:#ffd166"}">${bk.configured ? "configured" : "not set"}</span></h3>
+      <div class="muted" style="font-size:.85em;margin-bottom:8px">Writes a consistent snapshot of the database into a folder your
+        Google Drive / Dropbox / iCloud client already syncs. No API keys — your desktop client pushes the file to the cloud.</div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+        <select id="bkDest" style="min-width:300px">
+          <option value="">— choose a synced folder —</option>
+          ${bk.destinations.map((dd) => `<option value="${dd.path}" ${bk.dir === dd.path ? "selected" : ""}>${dd.label} — ${dd.path}</option>`).join("")}
+          ${bk.dir && !bk.destinations.some((dd) => dd.path === bk.dir) ? `<option value="${bk.dir}" selected>${bk.dir}</option>` : ""}
+        </select>
+        <button class="primary" id="bkRun" ${bk.configured ? "" : "disabled"}>Back up now</button>
+      </div>
+      <div class="muted mt" style="font-size:.82em">
+        ${bk.last ? `Last: <b>${bk.last.name}</b> (${bk.last.when}) · ${bk.count} total` : "No backups yet."}
+        ${bk.encryption.on ? " · 🔒 encrypted" : bk.encryption.lib ? " · set BACKUP_KEY in .env to encrypt" : " · " + bk.encryption.hint}
+      </div>
+      <div id="bkOut" class="mt"></div>
+    </div>` : ""}
+
     <div class="card mt" style="border-left:4px solid ${secColor}">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <h3 style="margin:0">🔐 Security &amp; tests
@@ -168,6 +189,27 @@ async function renderControl(el) {
     ragBtn.addEventListener("click", async () => {
       ragBtn.disabled = true; ragBtn.textContent = "Indexing…";
       try { await api.post("/api/rag/reindex", {}); } finally { route(); }
+    });
+  }
+  const bkDest = document.getElementById("bkDest");
+  if (bkDest) {
+    bkDest.addEventListener("change", async (e) => {
+      await api.post("/api/backup/config", { dir: e.target.value }); route();
+    });
+  }
+  const bkRun = document.getElementById("bkRun");
+  if (bkRun) {
+    bkRun.addEventListener("click", async () => {
+      bkRun.disabled = true;
+      const o = document.getElementById("bkOut");
+      o.innerHTML = '<div class="muted">Backing up…</div>';
+      try {
+        const r = await api.post("/api/backup/run", {});
+        o.innerHTML = r.ok
+          ? `<div class="pos">✅ ${r.file} (${r.size_kb} KB${r.encrypted ? ", 🔒 encrypted" : ""}) → ${r.dir}</div>`
+          : `<div class="neg">${r.error}</div>`;
+      } catch (e) { o.innerHTML = `<div class="neg">${e.message}</div>`; }
+      finally { bkRun.disabled = false; }
     });
   }
   document.getElementById("secRun").addEventListener("click", async (e) => {
