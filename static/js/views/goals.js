@@ -34,7 +34,8 @@ async function renderGoals(el) {
       const eta = p.months == null
         ? "ustaw tempo oszczędzania, aby policzyć czas do celu"
         : p.months === 0 ? "cel osiągnięty 🎉"
-        : `${fmt.num(p.months, 1)} mies. → ~${p.eta} (tempo ${fmt.pln(p.pace)}/mies.)`;
+        : `${fmt.num(p.months, 1)} mies. → ~${p.eta} (tempo ${fmt.pln(p.pace)}/mies.)`
+          + (p.eta_band ? ` · zakres: ${fmt.num(p.eta_band.months_fast, 0)}–${fmt.num(p.eta_band.months_slow, 0)} mies. przy tempie ±${p.eta_band.wobble_pct}%` : "");
       return `<div class="card mt">
         <div class="row" style="justify-content:space-between">
           <h3 style="margin:0">${g.name}</h3>
