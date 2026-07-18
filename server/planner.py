@@ -319,7 +319,7 @@ def _project(goal, cfg):
     y, m = date.today().year, date.today().month + int(months + 0.999)
     y += (m - 1) // 12
     m = (m - 1) % 12 + 1
-    # ETA jako ZAKRES, nie jedna data (pojedyncza data ukrywa niepewność tempa)
+    # ETA as a RANGE, not a single date (a single date hides the pace uncertainty)
     import forecast_models as _fm
     band = _fm.goal_eta_band(remaining, pace)
     return {"months": round(months, 1), "eta": f"{y:04d}-{m:02d}", "pace": pace,
@@ -370,7 +370,7 @@ def delete_goal(goal_id):
 # ---------- job offers ----------
 
 def _current_total_monthly():
-    """Auto: obecny total mies. = base/12 + (bonus + RSU)/12. Dynamiczne (RSU śledzi kurs spółki)."""
+    """Auto: current monthly total = base/12 + (bonus + RSU)/12. Dynamic (RSU tracks the company price)."""
     base = (_num(get_setting("tax_salary_gross_annual")) or 120000) / 12.0
     extras = _annual_extras().get("monthly_equivalent", 0) or 0
     return round(base + extras)
@@ -735,7 +735,7 @@ def recommendation():
 
     t = w["totals"]
     # The cushion definition: cash (kind=cushion) + brokerage + pension — all
-    # quickly liquidable. Kaucja najemców (zobowiązanie) is excluded by kind.
+    # quickly liquidable. A tenant deposit (a liability) is excluded by kind.
     liquid_extra = sum(i["latest_value"] or 0 for i in w["items"]
                        if i["name"].startswith("brokerage") or i["name"] == "pension")
     cushion = t.get("cushion", 0) + liquid_extra
@@ -1264,11 +1264,11 @@ def business_marketing():
 
 # ---------- cash-flow / liquidity timeline ----------
 
-CF_DEFAULTS = {  # generyczne wartości startowe — realne trzymane w bazie (gitignored)
-    "cf_monthly_surplus": 5000,    # nadwyżka bazowa/mies.
-    "cf_safety_buffer": 30000,     # bufor bezpieczeństwa (dół salda płynnego)
-    "cf_liquid_start": 0,          # startowe środki płynne
-    "cf_bonus_month": 9,           # miesiąc bonusu
+CF_DEFAULTS = {  # generic starting values — real ones live in the DB (git-ignored)
+    "cf_monthly_surplus": 5000,    # base surplus per month
+    "cf_safety_buffer": 30000,     # safety buffer (floor of the liquid balance)
+    "cf_liquid_start": 0,          # starting liquid funds
+    "cf_bonus_month": 9,           # bonus month
     "cf_sweep_target": "loan",     # where surplus goes: loan | property | none
 }
 
@@ -1362,10 +1362,10 @@ def cashflow(months=15):
 
 # ---------- taxes ----------
 
-TAX_DEFAULTS = {  # generyczne wartości startowe — realne trzymane w bazie (gitignored)
+TAX_DEFAULTS = {  # generic starting values — real ones live in the DB (git-ignored)
     "tax_rental_monthly": 2000,
     "tax_rental_rate": 8.5,
-    "tax_zus_monthly": 431.54,   # oficjalny mały ZUS (kwota publiczna)
+    "tax_zus_monthly": 431.54,   # official reduced social-security amount (public figure)
     "tax_salary_gross_annual": 150000,
 }
 
@@ -1453,7 +1453,7 @@ def _alloc_class(name):
         return "team"
     if "ikze" in n or "ike" in n or "ppk" in n or "emerytal" in n:
         return "emerytalne"
-    if "gotówk" in n or "gotowk" in n or "cash" in n or "konto" in n:
+    if "cash" in n or "checking" in n or "account" in n or "saving" in n:
         return "gotowka"
     if "kia" in n or " ev" in n or "auto" in n or "samoch" in n:
         return "auto"
@@ -1562,7 +1562,7 @@ def _auto_reminders():
     # monthly market barometer update (Claude task)
     out.append({"title": "📈 Claude: update the market barometer (tracked roles)",
                 "due_date": f"{by:04d}-{bm:02d}-05", "auto": True, "kind": "Barometer"})
-    # monthly market brief refresh (Claude task) — zakładka Rynek
+    # monthly market brief refresh (Claude task) — Markets tab
     out.append({"title": "🧭 Claude: refresh the market brief (moves, macro context, per-position recommendations)",
                 "due_date": f"{by:04d}-{bm:02d}-05", "auto": True, "kind": "Market"})
     # monthly data backup
@@ -1621,7 +1621,7 @@ def delete_reminder(rid):
 
 def list_barometer():
     rows = eb._rows("select * from market_barometer order by month asc")
-    # korelacja z inbound: ile ofert dostał w danym miesiącu
+    # inbound correlation: how many offers arrived in a given month
     offers = eb._rows("select received_at from job_offers")
     inbound = {}
     for o in offers:
@@ -1689,7 +1689,7 @@ def health():
     except Exception as e:
         task("Market rates (stocks/FX)", "daily ~22:35", "—", "error", str(e)[:80])
 
-    # 2. śledzenie predykcji RSU (dziennie przy otwarciu RSU)
+    # 2. RSU prediction tracking (daily when RSU opens)
     try:
         r = eb._rows("select max(made_on) m, count(*) c from rsu_predictions")
         lastm = r[0]["m"] if r else None
@@ -1700,7 +1700,7 @@ def health():
     except Exception as e:
         task("RSU prediction tracking", "daily", "—", "error", str(e)[:80])
 
-    # 2b. samouczący dziennik prognoz (pasma short-term, cała watchlista)
+    # 2b. self-learning forecast journal (short-term bands, whole watchlist)
     try:
         ss = _mkt.forecast_selfscore()
         h21 = next((h for h in ss["horizons"] if h["days"] == 21), None)
@@ -1738,7 +1738,7 @@ def health():
         task("Business marketing (ads reports)", "weekly Mon ~07:00", "—", "warn",
              "offline/no Supabase")
 
-    # 4. barometr rynku (Claude, miesięcznie)
+    # 4. job-market barometer (Claude, monthly)
     try:
         r = eb._rows("select max(month) m, count(*) c from market_barometer")
         lastm = (r[0]["m"] + "-15") if r and r[0]["m"] else None
@@ -1750,7 +1750,7 @@ def health():
     except Exception as e:
         task("Market barometer (EM/Head openings)", "monthly (Claude)", "—", "error", str(e)[:80])
 
-    # 5. backup danych (miesięcznie)
+    # 5. data backup (monthly)
     try:
         bdir = repo / "backups"
         enc = sorted(bdir.glob("finance-*.db.enc"), key=lambda p: p.stat().st_mtime) if bdir.exists() else []
@@ -1765,7 +1765,7 @@ def health():
     except Exception as e:
         task("Data backup (encrypted)", "monthly", "—", "error", str(e)[:80])
 
-    # 6. audyt danych wrażliwych w gicie
+    # 6. sensitive-data audit in git
     try:
         out = subprocess.run(["git", "-C", str(repo), "ls-files"],
                              capture_output=True, text=True, timeout=10)
@@ -1782,7 +1782,7 @@ def health():
     except Exception as e:
         task("Audit: sensitive data in git", "on every push", "—", "warn", "git unavailable: " + str(e)[:60])
 
-    # 7. baza danych — integralność
+    # 7. database — integrity
     try:
         chk = eb._rows("pragma integrity_check")
         okc = chk and (chk[0].get("integrity_check") == "ok" or list(chk[0].values())[0] == "ok")
@@ -1803,14 +1803,14 @@ def health():
     except Exception as e:
         task("GitHub sync", "after code changes", "—", "warn", str(e)[:80])
 
-    # 9b. security scan repo (co tydzień)
+    # 9b. repo security scan (weekly)
     try:
         sc = security_scan()
         task("Repo security scan (secrets)", "weekly", now, sc["status"], sc["summary"])
     except Exception as e:
         task("Repo security scan (secrets)", "weekly", "—", "warn", str(e)[:70])
 
-    # 9. aktywność commitowa (cel: codziennie)
+    # 9. commit activity (goal: daily)
     try:
         ga = github_activity(days=30)
         if ga["today"] > 0:
@@ -2081,18 +2081,18 @@ def git_status(do_fetch=True):
 # ---------- FIRE / work-optional projection (zamiast Monte Carlo) ----------
 
 def fire_projection():
-    """Projekcja płynnego portfela do celu work-optional (3 mln), 3 scenariusze
+    """Liquid-portfolio projection toward the work-optional goal, 3 scenarios
     zwrotu + wersja realna (po inflacji). Czytelne linie zamiast histogramu MC."""
     from datetime import date
     goals = list_goals()
     g = next((x for x in goals if any(k in x["name"].lower()
-             for k in ("work-optional", "płynn", "3 mln", "niezależ"))), None)
+             for k in ("work-optional", "liquid", "independent", "portfolio"))), None)
     start = (g and g.get("current_amount")) or 289000
     target = (g and g.get("target_amount")) or 1000000
     base_month = _num(get_setting("monthly_savings")) or 10000
     extras = _annual_extras().get("monthly_equivalent", 0) or 0
     contrib = base_month + extras
-    # po spłacie kredytu uwolniona rata dorzuca do oszczędności (uproszczenie: +3200 od startu+~1 rok)
+    # after the loan is paid off, the freed installment adds to savings
     freed = 0
     try:
         loan = next((d for d in list_debts()["debts"] if any(k in d["name"].lower()
@@ -2123,7 +2123,7 @@ def fire_projection():
                     labels.append(label_at(m))
             if name not in crossover and bal >= target:
                 crossover[name] = label_at(m)
-            # uwolniona rata kredytu dorzuca po ~12 miesiącach
+            # the freed loan installment kicks in after ~12 months
             add = contrib + (freed if m >= 12 else 0)
             bal = bal * (1 + rm) + add
 
@@ -2159,7 +2159,7 @@ def fire_projection():
             delay = max(0, (int(lp[:4]) - today.year) * 12 + (int(lp[5:7]) - today.month))
     except Exception:
         pass
-    property_r = 0.04 / 12  # blisko celu → ostrożniej/płynniej
+    property_r = 0.04 / 12  # close to the goal → more cautious/liquid
     property_contrib = contrib + freed
     bal = property_start
     property_series = []
@@ -2198,7 +2198,7 @@ def fire_projection():
 
 
 def _liquid_now():
-    """Płynny portfel = ETF + akcje RSU + gotówka + emerytalne (bez nieruchomości)."""
+    """Liquid portfolio = ETF + RSU shares + cash + pension (excluding real estate)."""
     try:
         a = allocation()
         keys = {"etf", "team", "gotowka", "emerytalne"}
@@ -2226,7 +2226,7 @@ def record_fire_snapshot(fallback_liquid=None):
 
 
 def fire_tracking(contrib, freed, base_annual):
-    """Porównuje realne miesięczne snapshoty z oczekiwanym tempem (plan)."""
+    """Compares real monthly snapshots with the expected pace (plan)."""
     snaps = eb._rows("select month, liquid from fire_snapshots order by month asc")
     if len(snaps) < 2:
         return {"status": "collecting data", "snapshots": len(snaps),
@@ -2251,7 +2251,7 @@ def fire_tracking(contrib, freed, base_annual):
             "latest_liquid": round(snaps[-1]["liquid"])}
 
 
-# ---------- GitHub / aktywność commitowa (skill: commitowanie) ----------
+# ---------- GitHub / commit activity ----------
 
 def github_activity(days=90):
     """Daily commit activity across local git repos. Configure which repos and
@@ -2299,13 +2299,13 @@ def github_activity(days=90):
         series.append({"date": dd, "count": counts.get(dd, 0)})
     total = sum(c["count"] for c in series)
     active_days = sum(1 for c in series if c["count"] > 0)
-    # streak (kolejne dni do dziś z ≥1 commitem)
+    # streak (consecutive days up to today with ≥1 commit)
     streak = 0
     i = 0
     while counts.get((today - timedelta(days=i)).isoformat(), 0) > 0:
         streak += 1
         i += 1
-    # najdłuższy streak w oknie
+    # longest streak in the window
     best = cur = 0
     for c in series:
         if c["count"] > 0:
@@ -2342,19 +2342,19 @@ def security_scan():
     ls = g(["ls-files"])
     tracked = ls.stdout.splitlines() if ls else []
 
-    # 1. pliki-sekrety śledzone
+    # 1. tracked secret files
     bad = [f for f in tracked if re.search(r"(^|/)\.env($|\.)(?!example)|\.pem$|\.key$|id_rsa|\.p12$|secret", f, re.I)]
     if bad:
         findings.append({"sev": "high", "what": "Tracked secret files", "detail": ", ".join(bad[:5])})
 
-    # 2. wrażliwe ścieżki nie-ignorowane
+    # 2. sensitive paths not git-ignored
     for p in ("private", ".finance", "doc-raw", "backups"):
         ci = g(["check-ignore", p + "/"])
         leaked = [f for f in tracked if f.startswith(p + "/")]
         if leaked:
             findings.append({"sev": "high", "what": f"Tracked files in {p}/", "detail": ", ".join(leaked[:3])})
 
-    # 3. leak-check: realne wartości z .env w śledzonych plikach
+    # 3. leak-check: real .env values in tracked files
     env = Path(repo) / ".env"
     checked = 0
     if env.exists():
@@ -2364,14 +2364,14 @@ def security_scan():
                 continue
             k, _, v = line.partition("=")
             v = v.strip().strip('"').strip("'")
-            if len(v) < 12:  # pomiń krótkie (PORT itd.)
+            if len(v) < 12:  # skip short ones (PORT etc.)
                 continue
             checked += 1
             r = g(["grep", "-F", v, "--", "."])
             if r and r.stdout.strip():
                 findings.append({"sev": "critical", "what": f"LEAK of the {k.strip()} value", "detail": "a value from .env found in a tracked file!"})
 
-    # 4. wzorce sekretów (poza base64/blogami). Literały rozbite, by skaner nie łapał sam siebie.
+    # 4. secret patterns (excluding base64/blogs). Literals split so the scanner doesn't match itself.
     pat = "|".join([
         "eyJ" + "hbGciOiJ",                       # JWT header
         r"https://[a-z0-9]{15,}\.supabase\.co",   # realny URL Supabase
