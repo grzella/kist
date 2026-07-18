@@ -4,7 +4,7 @@
 
 A *kist* is an old word for the chest where you keep what's valuable — at home, in your own hands. This one turns scattered personal finances and career signals into one decision cockpit. Runs entirely on your machine — a Flask backend, a single SQLite file, and a vanilla-JS frontend with no build step.
 
-> **Your data never leaves your machine.** Everything lives in one local, git-ignored file (`.finance/finance.db`) — there is no database server to install and no cloud account required. This repo ships **no personal data**, a first-run wizard sets you up, and a **demo mode** masks every figure for safe screenshots.
+> **Your data never leaves your machine.** Everything lives in one local SQLite file, stored **outside the repo** by default (`~/Library/Application Support/Kist` on macOS, `~/.local/share/kist` on Linux) — no database server, no cloud account. This repo ships **no personal data**, a first-run wizard sets you up, and a **demo mode** masks every figure for safe screenshots.
 
 ## What problems does it solve?
 
@@ -107,12 +107,13 @@ Your data is one local SQLite file, so a backup is just a copy — but a copy yo
 - **Demo mode** (Control Center or `?demo`) masks all figures with a `0-1` pattern and hides chart axis values — safe screenshots.
 - **Language**: UI is English-native with a Polish toggle (Control Center or `?lang=pl`); i18n contributions welcome.
 
-## Security
+## Security & tests
 
 This repo is built to be safe to fork and contribute to:
 
-- `server/security_review.py` — a pentest-style suite: secret scan of the working tree **and the full git history**, dangerous-pattern static analysis (eval/exec, shell, SQL injection, debug, network binds), maintainer personal-data audit, config hygiene, and endpoint smoke tests.
+- `server/security_review.py` — a pentest-style suite: secret scan of the working tree **and the full git history**, dangerous-pattern static analysis (eval/exec, shell, SQL injection, debug, network binds), maintainer personal-data audit, config hygiene, endpoint smoke tests, and an **active probe of any local LLM server** (must reject keyless requests).
 - Runs three ways: **Control Center button**, CLI (`cd server && python -m security_review --ci`), and **GitHub Actions** on every push/PR + weekly ([`.github/workflows/security.yml`](.github/workflows/security.yml)).
+- **Real test suite** — `pytest` in [`tests/`](tests/) (endpoint smoke across every GET route, goals/wealth CRUD, forecast math, RAG ranking incl. the semantic hybrid, backup/restore round-trip). CI enforces a **coverage floor** and a **bandit** security-lint gate; **Dependabot** watches dependencies. Run locally: `python -m pytest -q`.
 
 ## Tech
 
@@ -124,7 +125,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
-Issues and PRs welcome — i18n (English strings!), market-data adapters, new forecast models, and UX especially. Clone, run `./run.sh`, load sample data via the wizard, and you have a working playground. CI runs the security suite on every PR.
+Issues and PRs welcome — see [CONTRIBUTING.md](CONTRIBUTING.md) for setup, the two CI gates, and ground rules. Good first areas: i18n (new languages), market-data adapters, new forecast models, and UX. Clone, run `./run.sh`, load sample data via the wizard, and you have a working playground.
 
 ## License
 
