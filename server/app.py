@@ -453,19 +453,19 @@ def rag_reindex():
 
 @app.get("/api/backup/status")
 def backup_status():
-    import backup
+    import data_backup as backup
     return jsonify(backup.status())
 
 
 @app.post("/api/backup/config")
 def backup_config():
-    import backup
+    import data_backup as backup
     return jsonify(backup.set_destination(request.get_json(force=True).get("dir", "")))
 
 
 @app.post("/api/backup/run")
 def backup_run():
-    import backup
+    import data_backup as backup
     return jsonify(backup.create_backup())
 
 

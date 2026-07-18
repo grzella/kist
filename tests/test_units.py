@@ -42,7 +42,7 @@ def test_forecast_bands_are_ordered():
 
 
 def test_backup_snapshot_is_consistent(client, tmp_path):
-    import backup
+    import data_backup as backup
     backup.set_destination(str(tmp_path))
     r = backup.create_backup()
     assert r["ok"] and r["size_kb"] > 0
