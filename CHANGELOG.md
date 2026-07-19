@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
+### Security
+- **Loopback/CSRF guard**: a `before_request` check rejects any non-loopback `Host` (DNS rebinding) and blocks cross-origin state-changing requests (CSRF) — the API has no auth by design, so this closes the two browser-reachable attack paths. Added a strict **Content-Security-Policy** (`script-src 'self'`), `X-Frame-Options: DENY`, `nosniff` and `no-referrer`; external (Supabase) market text is HTML-escaped before it hits the DOM; the system prompt now treats retrieved context / DB rows as data, not instructions (indirect prompt-injection). `security_review` actively pentests the guard (forged `Host` + cross-origin write must 403), and [SECURITY.md](SECURITY.md) documents the threat model. Prompted by a red-team self-review.
+
 ### Added
 - **Experience distillation** (`server/experience.py`): a good answer can be distilled — one click, **💡 Learn from this** in the prompt log — into a transferable lesson stored in `agent_experiences`, indexed into RAG and injected as guidance on similar future questions. Self-evolution without retraining (*AI Agents in Depth*, ch. 8); human-gated, prunable (**🧠 Learned experiences** panel), fully local. `/api/experience`, `/api/experiences`.
 - **Live demo on GitHub Pages**: the real UI with the fake "Alex Demo" persona, fully clickable and read-only — `demo/build_demo.py` seeds a throwaway DB, snapshots every GET endpoint to JSON and assembles `dist/`; api.js serves those snapshots when `KIST_STATIC_DEMO` is set (writes become a friendly toast). Deployed by `.github/workflows/demo-pages.yml` on the canonical repo (push + weekly).
