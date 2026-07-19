@@ -141,11 +141,22 @@ def get_watchlist():
 
 
 def add_ticker(ticker, notes=""):
-    _supabase_send("POST", "market_watchlist", {"ticker": ticker.upper(), "notes": notes})
-    return {"ok": True}
+    try:
+        _supabase_send("POST", "market_watchlist", {"ticker": ticker.upper(), "notes": notes})
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": "The watchlist needs Supabase (keys in .env) — "
+                                      "see README › Connecting your own services. " + str(e)[:60]}
 
 
 def remove_ticker(ticker):
+    try:
+        return _remove_ticker_inner(ticker)
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:80]}
+
+
+def _remove_ticker_inner(ticker):
     _supabase_send("DELETE", f"market_watchlist?ticker=eq.{urllib.parse.quote(ticker.upper())}")
     return {"ok": True}
 

@@ -176,3 +176,11 @@ def test_schedules_run_due_records_period(client, monkeypatch):
     assert task["id"] in out and ran["n"] == 1
     out2 = sc.run_due(datetime(2026, 7, 13, 23, 30))
     assert task["id"] not in out2 and ran["n"] == 1   # once per period
+
+
+def test_watchlist_without_supabase_is_graceful(client):
+    # a fresh user with no Supabase must get a friendly error, not a 500
+    r = client.post("/api/watchlist/NVDA")
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d.get("ok") is False and "Supabase" in (d.get("error") or "")
