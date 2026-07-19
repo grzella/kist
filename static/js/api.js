@@ -31,6 +31,11 @@ const api = {
   },
   async send(method, path, body) {
     if (demoStatic()) {
+      // compute-only POSTs (e.g. overpayment simulations) have baked responses
+      const key = ("post_" + path + "__" + JSON.stringify(body === undefined ? "" : body))
+        .replace(/^\//, "").replace(/[^A-Za-z0-9._-]/g, "_") + ".json";
+      const r = await fetch("demo-data/" + key).catch(() => null);
+      if (r && r.ok) return r.json();
       demoToast();
       return { ok: false, demo: true, error: "Read-only demo — changes aren't saved." };
     }

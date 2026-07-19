@@ -4,7 +4,7 @@
 
 A *kist* is an old word for the chest where you keep what's valuable — at home, in your own hands. This one turns scattered personal finances and career signals into one decision cockpit. Runs entirely on your machine — a Flask backend, a single SQLite file, and a vanilla-JS frontend with no build step.
 
-**[▶ Try the live demo](https://grzella.github.io/kist-finance/)** — the real UI with a fake persona ("Alex Demo"), fully clickable, read-only. Static snapshots on GitHub Pages, rebuilt weekly with fresh market charts; nothing you click is saved and no backend is involved.
+**[▶ Try the live demo](https://grzella.github.io/kist-finance/)** — the real UI with a fake persona ("Alex Demo"), fully clickable, read-only. Static snapshots on GitHub Pages; nothing you click is saved and no backend is involved.
 
 > **Your data never leaves your machine.** Everything lives in one local SQLite file, stored **outside the repo** by default (`~/Library/Application Support/Kist` on macOS, `~/.local/share/kist` on Linux) — no database server, no cloud account. This repo ships **no personal data**, a first-run wizard sets you up, and a **demo mode** masks every figure for safe screenshots.
 
