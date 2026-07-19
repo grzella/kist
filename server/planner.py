@@ -177,6 +177,7 @@ def get_app_config():
     return {
         "wizard_completed": bool(cfg.get("wizard_completed")),
         "modules": mods,
+        "currency": get_setting("base_currency") or "PLN",
         "registry": MODULES,
         "enabled_views": enabled_views,
     }
@@ -193,6 +194,8 @@ def save_app_config(data):
             for m in MODULES}
     cfg = {"wizard_completed": bool(data.get("wizard_completed", cur["wizard_completed"])),
            "modules": mods}
+    if data.get("base_currency") in ("PLN", "EUR", "USD", "GBP", "CHF"):
+        set_settings({"base_currency": data["base_currency"]})
     set_settings({"app_config": _json.dumps(cfg)})
     return get_app_config()
 
@@ -731,7 +734,8 @@ EXPECTED_MARKET_RETURN = 6.5  # % nominal, conservative after-cost assumption
 
 
 def _zl(v):
-    return f"{v:,.0f}".replace(",", " ") + " PLN"
+    cur = get_setting("base_currency") or "PLN"
+    return f"{v:,.0f}".replace(",", " ") + " " + cur
 
 
 def recommendation():
@@ -1530,14 +1534,20 @@ def _auto_reminders():
         vdate = f"{vy:04d}-{nvm:02d}-15"
         val = rsu.get("next_vest_value_pln")
         out.append({"title": f"RSU vest ({rsu.get('shares_next_vest')} shares"
-                    + (f", ≈{_zl(val)}" if val else "") + ") — sell → loan overpayment",
+                    + (f", ≈{_zl(val)}" if val else "") + ") — review your sell/hold plan",
                     "due_date": vdate, "auto": True, "kind": "RSU"})
     except Exception:
         pass
-    # bonus (configured month)
-    by = today.year if today.month <= 9 else today.year + 1
-    out.append({"title": "Annual bonus (configured amount) — loan overpayment",
-                "due_date": f"{by:04d}-09-30", "auto": True, "kind": "Income"})
+    # annual bonus — only when configured (amount + month come from settings)
+    try:
+        _bonus = _num(get_setting("annual_bonus_net"))
+        _bm = int(_num(get_setting("cf_bonus_month")) or 0)
+        if _bonus and 1 <= _bm <= 12:
+            by = today.year if today.month <= _bm else today.year + 1
+            out.append({"title": f"Annual bonus (~{_zl(_bonus)}) — plan its use",
+                        "due_date": f"{by:04d}-{_bm:02d}-28", "auto": True, "kind": "Income"})
+    except Exception:
+        pass
     # kredyt hipoteczny fixed-rate end → aneks
     try:
         for d in list_debts()["debts"]:
@@ -1557,23 +1567,21 @@ def _auto_reminders():
                         "due_date": today.isoformat(), "auto": True, "kind": "Market"})
     except Exception:
         pass
-    # weekly (Claude): security scan + README
+    # weekly: security review (also runs in CI / on schedule — this is a visibility nudge)
     from datetime import timedelta as _td
     nextweek = (today + _td(days=7 - today.weekday() if today.weekday() < 7 else 7)).isoformat()
-    out.append({"title": "🔒 Claude: security scan of the repo (secrets, sensitive files)",
+    out.append({"title": "🔒 Run the security review (Control Center button — also automated)",
                 "due_date": nextweek, "auto": True, "kind": "Security"})
-    out.append({"title": "📝 Claude: review and update README ",
-                "due_date": nextweek, "auto": True, "kind": "Docs"})
     # next month's 1st, reused for monthly tasks
     by, bm = (today.year, today.month + 1) if today.month < 12 else (today.year + 1, 1)
     # monthly market barometer update (Claude task)
-    out.append({"title": "📈 Claude: update the market barometer (tracked roles)",
+    out.append({"title": "📈 Update the market barometer (the roles you track) — you or any AI assistant",
                 "due_date": f"{by:04d}-{bm:02d}-05", "auto": True, "kind": "Barometer"})
     # monthly market brief refresh (Claude task) — Markets tab
-    out.append({"title": "🧭 Claude: refresh the market brief (moves, macro context, per-position recommendations)",
+    out.append({"title": "🧭 Refresh the market brief — authored by you or any AI assistant",
                 "due_date": f"{by:04d}-{bm:02d}-05", "auto": True, "kind": "Market"})
-    # monthly data backup
-    out.append({"title": "💾 Data backup — run apps/budget/backup.sh (encrypted database → Google Drive)",
+    # monthly: verify backups exist (snapshots are automated via Schedules)
+    out.append({"title": "💾 Verify backups (Control Center — snapshots run on a schedule)",
                 "due_date": f"{by:04d}-{bm:02d}-01", "auto": True, "kind": "Backup"})
     # quarterly review
     q_month = ((today.month - 1) // 3 + 1) * 3 + 1

@@ -34,7 +34,7 @@ async function renderOffers(el) {
     <div class="muted" style="margin:6px 0 12px;font-size:.88em">Reference point (auto): <b>${s ? fmt.pln(s.current) : "—"}</b>/mo —
       current total (base + bonus + RSU, computed dynamically from the RSU stock price). Offer deltas and goal impact are computed against this.</div>
     <div class="card" id="baroCard">
-      <h3>📈 Market barometer — demand for ${d.roles.a} / ${d.roles.b} roles (+ your inbound)</h3>
+      <h3>📈 Market barometer — demand for ${data.roles.a} / ${data.roles.b} roles (+ your inbound)</h3>
       <div class="muted" style="font-size:.85em;margin-bottom:8px">Total open roles on your market for the two roles you track (rename them in Settings: career_role_a / career_role_b) — a monthly trend against your inbound (bars).
         Shows whether the growing number of inquiries to you is your brand or market growth (and whether AI is shrinking it).
         <b>Updated by Claude monthly</b> (research across board aggregates: Glassdoor / Indeed / Remote Rocketship) — you compute nothing by hand.</div>
@@ -103,7 +103,7 @@ async function renderOffers(el) {
   const btbl = document.getElementById("baroTable");
   if (bpts.length) {
     btbl.innerHTML = `<table><thead><tr><th>Month</th><th style="text-align:right">EM openings</th>
-      <th style="text-align:right">${d.roles.b}</th><th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
+      <th style="text-align:right">${data.roles.b}</th><th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
       [...bpts].reverse().map((p) => `<tr><td>${p.month}</td>
         <td style="text-align:right">${p.em_openings != null ? fmt.grouped(p.em_openings) : "—"}</td>
         <td style="text-align:right">${p.head_openings != null ? fmt.grouped(p.head_openings) : "—"}</td>
@@ -120,7 +120,7 @@ async function renderOffers(el) {
             backgroundColor: "rgba(255,209,102,0.55)", yAxisID: "y1", order: 3, barPercentage: 0.5, categoryPercentage: 0.6 },
           { type: "line", label: "Market: tracked role", data: bpts.map((p) => p.em_openings),
             borderColor: CHART_COLORS[0], backgroundColor: "transparent", yAxisID: "y", tension: 0.25, borderWidth: 3, pointRadius: 3, order: 1 },
-          { type: "line", label: "Market: " + d.roles.b, data: bpts.map((p) => p.head_openings),
+          { type: "line", label: "Market: " + data.roles.b, data: bpts.map((p) => p.head_openings),
             borderColor: CHART_COLORS[1], backgroundColor: "transparent", yAxisID: "y", tension: 0.25, borderWidth: 3, pointRadius: 3, order: 2 },
         ],
       },

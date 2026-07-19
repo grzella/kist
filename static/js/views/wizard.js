@@ -58,7 +58,15 @@ async function renderWizard(el) {
         </div>
       </div>
 
-      <div class="row mt" style="justify-content:flex-end;gap:10px">
+            <div class="card mt" style="border-left:4px solid #4c8dff">
+        <h3 style="margin-top:0">💱 Base currency</h3>
+        <div class="row" style="align-items:center;gap:10px">
+          <select id="wzCur">${["PLN","EUR","USD","GBP","CHF"].map((c) => `<option ${c === (cfg.currency || "PLN") ? "selected" : ""}>${c}</option>`).join("")}</select>
+          <span class="muted" style="font-size:.85em">Used everywhere amounts are shown. Change later in Control Center.</span>
+        </div>
+      </div>
+
+<div class="row mt" style="justify-content:flex-end;gap:10px">
         <button id="wzFinish" class="primary" style="padding:10px 22px">Finish setup →</button>
       </div>
       <div id="wzStatus" class="muted mt" style="text-align:right"></div>
@@ -78,7 +86,7 @@ async function renderWizard(el) {
         await api.post("/api/sample-data");
       }
       status.textContent = "Saving configuration…";
-      await api.post("/api/app-config", { modules, wizard_completed: true });
+      await api.post("/api/app-config", { modules, wizard_completed: true, base_currency: (document.getElementById("wzCur") || {}).value });
       location.hash = "#dashboard";
       location.reload();
     } catch (err) {

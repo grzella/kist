@@ -6,7 +6,7 @@ async function renderForecasts(el) {
     api.get("/api/fire-projection").catch(() => null)]);
 
   const loan = debtsData.debts.find((d) => d.balance > 0);
-  const tarch = debtsData.debts.filter((d) => d.balance > 0)[1];
+  const secondLoan = debtsData.debts.filter((d) => d.balance > 0)[1];
   const vestPln = rsu.next_vest_value_pln || 0;
 
   async function overpay(debt, amount) {
@@ -19,10 +19,11 @@ async function renderForecasts(el) {
     });
   }
 
-  const [bonusLodz, vestLodz, bothLodz] = await Promise.all([
-    overpay(loan, 20000), overpay(loan, vestPln), overpay(loan, 20000 + vestPln)]);
+  const bonus = +cfg.annual_bonus_net || 20000;
+  const [bonusLoan, vestLoan, bothLoan] = await Promise.all([
+    overpay(loan, bonus), overpay(loan, vestPln), overpay(loan, bonus + vestPln)]);
 
-  const aneksSavYr = tarch ? tarch.balance * (tarch.effective_rate - 1.0) / 100 : 0;
+  const refiSavYr = secondLoan ? secondLoan.balance * 1.0 / 100 : 0;  // example: −1.0 pp
   const loanFreed = loan ? loan.monthly_cost_total : 0;
 
   const scenarioCard = (title, rows, note) => `
@@ -46,28 +47,27 @@ async function renderForecasts(el) {
   el.innerHTML = `
     <h2>Forecasts — your scenarios</h2>
     <div class="muted" style="margin-bottom:12px">Computed on live data: loan balances,
-      the RSU stock price, savings pace. Aligned with the strategy: loan payoff + refinancing in parallel.</div>
+      the RSU stock price, savings pace. Amounts come from your settings (e.g. annual_bonus_net).</div>
     <div class="grid cols-2">
-      ${scenarioCard("Annual bonus → loan overpayment", op(bonusLodz),
+      ${scenarioCard(`Annual bonus (~${fmt.pln(bonus)}) → loan overpayment`, op(bonusLoan),
         loan ? `Loan balance: ${fmt.pln(loan.balance)} · installment ${fmt.pln(loan.minimum_payment)}` : "")}
-      ${scenarioCard(`August: vest of ${rsu.shares_next_vest} shares (≈${fmt.pln(vestPln)}) → loan overpayment`, op(vestLodz),
+      ${scenarioCard(`Next vest of ${rsu.shares_next_vest} shares (≈${fmt.pln(vestPln)}) → loan overpayment`, op(vestLoan),
         "Sell at vest — capital gains tax only on the gain after vest (≈0 when selling right away)")}
-      ${scenarioCard("Vest + bonus combined (≈" + fmt.pln(20000 + vestPln) + ") → loan", op(bothLodz),
-        bothLodz ? "" : "This combination closes more than half the balance — with surpluses the loan is gone early")}
-      ${scenarioCard(`Rate annex for ${tarch ? tarch.name : "the loan"}: ${tarch ? fmt.pct(tarch.effective_rate, 2) : "?"} → lower rate`, [
-        ["Savings per year", fmt.pln(aneksSavYr), "pos"],
-        ["Until the fixed rate ends (~18 mo)", fmt.pln(aneksSavYr * 1.5), "pos"],
-        ["Capital involved", "0 PLN"],
-      ], "Playbook: real competing offers → certificate → customer retention department")}
+      ${scenarioCard("Vest + bonus combined (≈" + fmt.pln(bonus + vestPln) + ") → loan", op(bothLoan),
+        bothLoan ? "" : "This combination covers the whole balance — loan paid off 🎉")}
+      ${scenarioCard(`Refinance/annex scenario${secondLoan ? " for " + secondLoan.name : ""}: rate −1.0 pp`, [
+        ["Savings per year (example)", fmt.pln(refiSavYr), "pos"],
+        ["Over ~18 months", fmt.pln(refiSavYr * 1.5), "pos"],
+        ["Capital involved", "0"],
+      ], "Playbook: collect real competing offers → ask your bank's retention team to match")}
       ${scenarioCard("After the loan is paid off — what gets freed", [
         ["Installment + insurance", fmt.pln(loanFreed) + "/mo", "pos"],
-        ["Rent (stays as pure income)", fmt.pln(0) + "/mo", "pos"],
         ["Property unencumbered", "yes — profile ready for a property mortgage"],
       ], "From this moment all surpluses build the goal contribution")}
     </div>
 
     ${fire ? `<div class="card mt" style="border-left:4px solid #3ecf8e">
-      <h3 style="margin-top:0">🏁 Path to work-optional (target liquid portfolio)</h3>
+      <h3 style="margin-top:0">🏁 Path to work-optional (${fmt.pln(fire.target)} liquid portfolio)</h3>
       <div class="muted" style="font-size:.88em;margin-bottom:8px">
         Liquid portfolio today ${fmt.pln(fire.start)} → target ${fmt.pln(fire.target)}. Contribution: ${fire.assumptions.contrib_note}.
         Three return scenarios + the target line. When a line crosses the target = you are work-optional.</div>
@@ -82,7 +82,7 @@ async function renderForecasts(el) {
         <table><tbody>
           <tr><td>First liquid million</td><td><b>${fire.milestones["1000000"] || "—"}</b></td></tr>
           <tr><td>2M</td><td><b>${fire.milestones["660000"] || "—"}</b></td></tr>
-          <tr><td>Target — work-optional 🏁</td><td class="pos"><b>${fire.milestones["target"] || "—"}</b></td></tr>
+          <tr><td>${fmt.pln(fire.target)} — work-optional 🏁</td><td class="pos"><b>${fire.milestones[String(fire.target)] || fire.crossover || "—"}</b></td></tr>
         </tbody></table></div>
       <div class="muted mt" style="font-size:.82em">This replaces Monte Carlo with readable lines. Hover over the chart to see the value in a given month. "Real" uses the after-inflation return (~3.5% real) — the date in today's purchasing power.</div>
     </div>

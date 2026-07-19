@@ -79,6 +79,7 @@ async function renderControl(el) {
           <button class="${langGet() === "en" ? "primary" : ""}" id="langEn">🇬🇧 English</button>
           <span class="muted" style="font-size:.85em">English is the native UI language; the Polish option translates navigation, Control and common labels.
             Also via <code>?lang=pl</code>.</span>
+          <span style="margin-left:14px">💱 <select id="curSel">${["PLN","EUR","USD","GBP","CHF"].map((c) => `<option ${c === (window.APP_CURRENCY || "PLN") ? "selected" : ""}>${c}</option>`).join("")}</select></span>
         </div>
       </div>
     </div>
@@ -184,6 +185,10 @@ async function renderControl(el) {
   document.getElementById("demoToggle").addEventListener("click", () => toggleDemo(!demoOn()));
   document.getElementById("langPl").addEventListener("click", () => langSet("pl"));
   document.getElementById("langEn").addEventListener("click", () => langSet("en"));
+  document.getElementById("curSel").addEventListener("change", async (e) => {
+    await api.post("/api/app-config", { base_currency: e.target.value });
+    window.APP_CURRENCY = e.target.value; location.reload();
+  });
   document.querySelectorAll('input[name="aiMode"]').forEach((r) =>
     r.addEventListener("change", (e) =>
       api.post("/api/llm/config", { ai_mode: e.target.value }).then(() => route())));

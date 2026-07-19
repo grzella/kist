@@ -149,6 +149,7 @@ async function appCfg() {
   if (!_appCfg) {
     _appCfg = await api.get("/api/app-config")
       .catch(() => ({ wizard_completed: true, enabled_views: null }));
+    window.APP_CURRENCY = _appCfg.currency || "PLN";
   }
   return _appCfg;
 }

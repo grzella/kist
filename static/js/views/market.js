@@ -66,6 +66,7 @@ async function renderMarket(el) {
 
     ${marketBriefHtml(brief)}
     <h3 class="mt">Watchlist</h3>
+    <div class="muted" style="font-size:.82em;margin:2px 0 6px">Quotes come from your local cache. The 🌍 Risk Radar fetches its four tickers by itself (keyless Yahoo); everything else needs your own sync — see README › Connecting your own services.</div>
     <div class="card">
       <div class="row">
         <input id="wlTicker" placeholder="ticker e.g. AAPL" style="width:140px">

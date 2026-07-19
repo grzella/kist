@@ -74,7 +74,14 @@ function _maskInt(v) {
 function _maskDec(n) { return n > 0 ? "01".repeat(Math.ceil(n / 2)).slice(0, n) : ""; }
 (function wrapDemo() {
   const o = { pln: fmt.pln, usd: fmt.usd, num: fmt.num, pct: fmt.pct, grouped: fmt.grouped, eur: fmt.eur };
-  fmt.pln = (v) => v == null ? "—" : (demoOn() ? _maskInt(v) + " zł" : o.pln(v));
+  const _CURSYM = { PLN: ["", " zł"], EUR: ["€", ""], USD: ["$", ""], GBP: ["£", ""], CHF: ["", " CHF"] };
+  fmt.money = (v) => {
+    if (v == null) return "—";
+    const [pre, suf] = _CURSYM[window.APP_CURRENCY || "PLN"] || _CURSYM.PLN;
+    const body = demoOn() ? _maskInt(v) : fmt.grouped(Math.round(v));
+    return pre + body + suf;
+  };
+  fmt.pln = fmt.money;  // legacy alias — every view formats through the configured currency
   fmt.usd = (v) => v == null ? "—" : (demoOn() ? "$" + _maskInt(v) + "." + _maskDec(2) : o.usd(v));
   fmt.num = (v, d = 2) => v == null ? "—" : (demoOn() ? _maskInt(v) + (d > 0 ? "," + _maskDec(d) : "") : o.num(v, d));
   fmt.pct = (v, d = 1) => v == null ? "—" : (demoOn() ? _maskInt(v) + (d > 0 ? "," + _maskDec(d) : "") + "%" : o.pct(v, d));
