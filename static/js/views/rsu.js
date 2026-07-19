@@ -9,7 +9,7 @@ async function renderRsu(el) {
     .filter((d) => d.balance > 0)
     .sort((a, b) => (b.effective_rate || 0) - (a.effective_rate || 0))[0];
   const rec = (() => {
-    if (!r.last_close) return "No price — add your company ticker and USDPLN=X to the watchlist.";
+    if (!r.last_close) return "No price — add your company ticker (and your USD FX pair, if your base currency isn't USD) to the watchlist.";
     const parts = [];
     if (nextVestPln) {
       parts.push(`In the ${r.next_vest_month} window ${fmt.num(r.shares_next_vest, 0)} shares vest ≈ ${fmt.pln(nextVestPln)} at the current price.`);
@@ -52,9 +52,9 @@ async function renderRsu(el) {
       <div class="card kpi"><div class="label">Total after vest</div>
         <div class="value">${fmt.num(r.shares_after_vest, 0)}</div>
         <div class="sub">${r.after_vest_value_pln ? "≈ " + fmt.pln(r.after_vest_value_pln) : ""}</div></div>
-      <div class="card kpi"><div class="label">Price / USDPLN</div>
+      <div class="card kpi"><div class="label">Price${r.usdpln !== 1 ? " / USD" + (window.APP_CURRENCY || "PLN") : ""}</div>
         <div class="value">${r.last_close ? "$" + r.last_close : "—"}</div>
-        <div class="sub">close ${r.last_close_date || "—"} · USD/PLN ${r.usdpln ? fmt.num(r.usdpln, 3) : "—"} (${r.usdpln_date || "—"})<br>
+        <div class="sub">close ${r.last_close_date || "—"}${r.usdpln !== 1 ? ` · USD/${window.APP_CURRENCY || "PLN"} ${r.usdpln ? fmt.num(r.usdpln, 3) : "—"} (${r.usdpln_date || "—"})` : ""}<br>
           new quotes daily ~22:35 (n8n) · sync: ${r.cache_synced ? r.cache_synced.slice(0, 16).replace("T", " ") : "—"}</div></div>
     </div>
     <div class="card mt" style="border-left:4px solid #ffd166">
@@ -107,7 +107,7 @@ async function renderRsu(el) {
       <div class="muted mt" style="font-size:.85em">Band = the distribution of the value of held + vested shares (base, not counting growing grants)
         from ${fmt.grouped(adv.sims)} simulations of the price path (GBM on actual ${adv.vol_annual_pct}% volatility). The dark line = the median (p50);
         the band = p10–p90. Dashed = the path to the analyst consensus $${adv.analyst.mid} (fundamental view, 12 mo).
-        USD/PLN ${fmt.num(adv.usdpln, 2)}. Gross values — 19% capital gains tax on the gain after vest (≈0 when selling right away).</div>
+        ${adv.usdpln !== 1 ? `USD/${window.APP_CURRENCY || "PLN"} ${fmt.num(adv.usdpln, 2)}. ` : ""}Gross values — 19% capital gains tax on the gain after vest (≈0 when selling right away).</div>
       <table class="mt"><thead><tr><th>Window</th><th>Shares (base)</th>
         <th>Pess. p10</th><th>Median p50</th><th>Opt. p90</th><th>Analyst consensus</th></tr></thead>
       <tbody>${adv.projection.map((p) => `<tr>

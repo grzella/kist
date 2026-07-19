@@ -280,10 +280,8 @@ def get_rsu():
     last = hist[-1]["close"] if hist else None
     shares = int(grant["grant_value_usd"] / avg) if avg else None
     est_shares = int(grant["grant_value_usd"] / last) if (not avg and last) else None
-    usdpln_hist = prices("USDPLN=X", days=10)
-    usdpln = usdpln_hist[-1]["close"] if usdpln_hist else None
+    usdpln, usdpln_date = _usd_base_rate()
     last_close_date = hist[-1]["date"] if hist else None
-    usdpln_date = usdpln_hist[-1]["date"] if usdpln_hist else None
     n_vests = grant["vesting_years"] * grant["vests_per_year"]
     eff_shares = shares or est_shares
     return {
@@ -303,6 +301,21 @@ def get_rsu():
         "n_vests": n_vests,
         **_rsu_holdings(grant, last, usdpln),
     }
+
+
+def _usd_base_rate(days=10):
+    """FX rate that converts USD amounts into the app's base currency.
+    Base USD → 1.0 (no conversion); otherwise the USD<base>=X pair from the
+    price cache (e.g. USDPLN=X). Returns (rate, rate_date) — (None, None)
+    when the pair has no data yet."""
+    from planner import get_setting
+    base = (get_setting("base_currency") or "PLN").upper()
+    if base == "USD":
+        return 1.0, None
+    hist = prices(f"USD{base}=X", days=days)
+    if hist:
+        return hist[-1]["close"], hist[-1]["date"]
+    return None, None
 
 
 def _rsu_holdings(grant, last, usdpln):
@@ -568,8 +581,8 @@ def rsu_advanced():
         return {"error": "no RSU price data — refresh the market cache"}
     closes = [r["close"] for r in hist]
     last = closes[-1]
-    usdpln_hist = prices("USDPLN=X", days=10)
-    usdpln = usdpln_hist[-1]["close"] if usdpln_hist else 3.79
+    usdpln, _ = _usd_base_rate()
+    usdpln = usdpln or 1.0
 
     vol, hist_drift = _annualized_vol(closes)
     vol = vol or 0.45
