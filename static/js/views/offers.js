@@ -111,7 +111,7 @@ async function renderOffers(el) {
   const bpts = baro.points || [];
   const broles = baro.roles || [];
   const bser = baro.series || {};
-  const geoTxt = (baro.geo || []).join(", ") || "—";
+   const geoTxt = esc((baro.geo || []).join(", ")) || "—";
   const bdesc = document.getElementById("baroDesc");
   if (bdesc) bdesc.innerHTML += ` <span class="muted">Geography: <b>${geoTxt}</b>.</span>`;
 
@@ -121,7 +121,7 @@ async function renderOffers(el) {
       cfgBox.style.display = "block";
       cfgBox.innerHTML = `<div class="muted" style="font-size:.82em">Geography (comma-separated) and roles (one per line, <code>Label = title query</code>). The n8n collector uses the <b>query</b> to count postings on job boards.</div>
         <input id="baroGeo" value="${(baro.geo || []).join(", ")}" style="width:100%;margin-top:6px" placeholder="Remote, US, UK">
-        <textarea id="baroRoles" rows="3" style="width:100%;margin-top:6px" placeholder="Senior Engineer = senior software engineer">${broles.map((r) => `${r.label} = ${r.query || r.label}`).join("\n")}</textarea>
+        <textarea id="baroRoles" rows="3" style="width:100%;margin-top:6px" placeholder="Senior Engineer = senior software engineer">${esc(broles.map((r) => `${r.label} = ${r.query || r.label}`).join("\n"))}</textarea>
         <button class="primary mt" id="baroSave" style="font-size:.85em">Save config</button>`;
       document.getElementById("baroSave").addEventListener("click", async () => {
         const geo = document.getElementById("baroGeo").value.split(",").map((s) => s.trim()).filter(Boolean);
@@ -143,13 +143,13 @@ async function renderOffers(el) {
     const roleCols = broles.map((r) => {
       const s = bser[r.key] || {};
       const trend = s.reading ? ` <span class="${readCls(s.reading)}" style="font-size:.8em">${s.reading}${s.q_pct != null ? " " + (s.q_pct > 0 ? "+" : "") + s.q_pct + "%/3m" : ""}</span>` : "";
-      return `<th style="text-align:right" title="query: ${r.query || r.label}">${r.label}${trend}</th>`;
+      return `<th style="text-align:right" title="query: ${esc(r.query || r.label)}">${esc(r.label)}${trend}</th>`;
     }).join("");
     btbl.innerHTML = `<table><thead><tr><th>Month</th>${roleCols}<th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
       [...bpts].reverse().map((p) => `<tr><td>${p.month}</td>` +
         broles.map((r) => `<td style="text-align:right">${p.counts[r.key] != null ? fmt.grouped(p.counts[r.key]) : "—"}</td>`).join("") +
         `<td style="text-align:right">${p.my_inbound}</td>
-        <td class="muted" style="font-size:.82em" title="${p.geo ? "geo: " + p.geo + " · " : ""}${p.as_of ? "as of " + p.as_of : ""}">${/estimat|szacun/i.test(p.sources || p.note || "") ? "⚠️ estimate" : (p.sources || "—")}</td>
+        <td class="muted" style="font-size:.82em" title="${p.geo ? "geo: " + esc(p.geo) + " · " : ""}${p.as_of ? "as of " + esc(p.as_of) : ""}">${/estimat|szacun/i.test(p.sources || p.note || "") ? "⚠️ estimate" : esc(p.sources || "—")}</td>
         <td><button class="danger" data-bdel="${p.id}">✕</button></td></tr>`).join("") + "</tbody></table>";
     btbl.querySelectorAll("[data-bdel]").forEach((b) =>
       b.addEventListener("click", async () => { await api.del("/api/market-barometer/" + b.dataset.bdel); route(); }));
