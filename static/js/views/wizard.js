@@ -39,10 +39,23 @@ async function renderWizard(el) {
             <b>Load sample data</b> <span class="muted">(fake persona "Alex Demo" — see how everything looks,
             clear it later with one click in Control Center → 🧨 Wipe all data)</span>
           </label>
-          <label style="display:block;cursor:pointer">
+          <label style="display:block;cursor:pointer;margin-bottom:8px">
             <input type="radio" name="wzData" value="empty">
             <b>Start empty</b> <span class="muted">(add your own numbers in Wealth / Loans / Goals tabs)</span>
-          </label>`}
+          </label>
+          <label style="display:block;cursor:pointer">
+            <input type="radio" name="wzData" value="ai">
+            <b>Set it up with an AI assistant</b> <span class="muted">(get a ready-made prompt that interviews you and tells you exactly what to enter where)</span>
+          </label>
+          <div id="wzAiBox" style="display:none;margin:10px 0 0 24px;padding:10px 12px;background:#4c8dff14;border-radius:8px;font-size:.88em">
+            <div style="padding:6px 10px;background:#ffd16622;border-radius:6px;margin-bottom:8px">⚠️ <b>Privacy note:</b> the app itself runs 100% on localhost, but anything you paste into a <b>cloud</b> assistant (ChatGPT, Claude web…) leaves your machine and is processed by that provider. For full privacy use a <b>local model</b> (Control Center → AI mode) or enter the numbers yourself.</div>
+            How it works: 1) click the button and paste the prompt into any AI assistant · 2) answer its questions ·
+            3) it hands you a tab-by-tab checklist (and ready JSON for the analysis boxes) · 4) finish this wizard with "Start empty" behavior and type the values in.
+            <div class="row mt" style="gap:8px;align-items:center">
+              <button type="button" id="wzAiCopy">📋 Copy AI onboarding prompt</button>
+              <span class="muted" id="wzAiCopied" style="font-size:.85em"></span>
+            </div>
+          </div>`}
       </div>
 
       <div class="card mt" style="border-left:4px solid #3ecf8e">
@@ -71,6 +84,28 @@ async function renderWizard(el) {
       </div>
       <div id="wzStatus" class="muted mt" style="text-align:right"></div>
     </div>`;
+
+  const AI_PROMPT = `You are helping me set up "Kist", a local-first personal-finance app I run on localhost. Interview me step by step (one topic at a time, short questions), then output a tab-by-tab checklist of exactly what to enter, using my base currency. Topics and the fields the app expects:
+1. Cash-flow tab: annual net income, fixed monthly costs, optional annual bonus (net) and its month.
+2. Wealth tab: each asset as name / type (cash, ETF, stock, property, vehicle, other) / owner / current value.
+3. Loans tab: each loan as name / balance / annual rate % / monthly payment / months left (and fixed-rate end date if any).
+4. Goals tab: each goal as name / target amount / amount saved so far / monthly pace.
+5. Taxes tab: capital-gains %, rental %, business income %, social-security monthly amount.
+6. RSU tab (if I have stock compensation): ticker, grant value, vesting schedule.
+7. Business tab (if I have a company): monthly revenue, monthly costs, tax rate.
+8. Market tab: 3-8 tickers for my watchlist.
+9. Career tab: my current role and a realistic target role set.
+For the analysis boxes (Career analysis, Property purchase, Market brief) produce ready-to-paste JSON — I will show you each box's exact schema by pasting its "Copy AI prompt" text when we get there.
+Finish with the checklist formatted as: TAB → field → value, in the order above. Ask before assuming anything.`;
+  const aiBox = document.getElementById("wzAiBox");
+  el.querySelectorAll('input[name="wzData"]').forEach((r) => r.addEventListener("change", () => {
+    if (aiBox) aiBox.style.display = r.value === "ai" && r.checked ? "block" : "none";
+  }));
+  const aiCopy = document.getElementById("wzAiCopy");
+  if (aiCopy) aiCopy.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(AI_PROMPT);
+    document.getElementById("wzAiCopied").textContent = "copied ✓ — paste it into your assistant";
+  });
 
   document.getElementById("wzFinish").addEventListener("click", async (e) => {
     const btn = e.target;
