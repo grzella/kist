@@ -256,3 +256,19 @@ def test_barometer_index_trend_config_and_backcompat(client):
         {"geo": ["US"], "roles": [{"key": "pm", "label": "Product Manager", "query": "product manager"}]})})
     b2 = planner.list_barometer()
     assert list(b2["series"]) == ["pm"] and b2["geo"] == ["US"]
+
+
+def test_view_js_global_helpers_are_defined():
+    """Guard the 'esc is not defined' class: a view calls a shared global helper
+    that isn't defined in api.js/app.js (it slipped in when esc() was added to one
+    repo's api.js but not the other's). Pure text check — no browser needed."""
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    defined = (root / "static/js/api.js").read_text() + (root / "static/js/app.js").read_text()
+    views = list((root / "static/js/views").glob("*.js"))
+    for name in ("esc", "fmt", "api", "demoOn", "parseNum"):
+        assert any(t in defined for t in (f"function {name}", f"const {name}", f"{name} =")), \
+            f"global helper `{name}` used by views is not defined in api.js/app.js"
+    # any view calling esc( must have esc defined (the exact regression)
+    if any("esc(" in v.read_text() for v in views):
+        assert "function esc" in defined, "views call esc() but api.js/app.js has no `function esc`"
