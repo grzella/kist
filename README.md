@@ -37,7 +37,18 @@ Re-run the wizard anytime at `http://127.0.0.1:8321/#wizard`. Use a different po
 
 ## Modules
 
-Core (always on): **Dashboard · Cash-flow · Recommendations · Wealth · Allocation · Goals · Forecasts · Control Center**.
+Core (always on):
+
+| Module | What it does |
+|---|---|
+| 📊 Dashboard | net-worth overview and the key figures at a glance |
+| 💸 Cash-flow | income vs. expenses and the monthly surplus you actually have to work with |
+| 💡 Recommendations | opinionated guidance computed from your data by a rule engine (+ optional AI second opinion) |
+| 💎 Wealth | assets and net worth over time, with periodic snapshots |
+| 🥧 Allocation | portfolio breakdown vs. targets, with 5/25 rebalancing drift |
+| 🎯 Goals | savings goals with ETA shown as a range at your real saving pace |
+| 🔮 Forecasts | self-calibrating range forecasts, FIRE/work-optional crossover, stress test + withdrawal guardrails |
+| 🛠️ Control Center | status, AI mode, prompt log, backups, demo mode and the security review |
 
 Optional — toggle in the wizard, disabled ones disappear from the UI:
 
@@ -45,7 +56,7 @@ Optional — toggle in the wizard, disabled ones disappear from the UI:
 |---|---|
 | 🏠 Loans & mortgage | principal/interest split, effective rate, overpayment scenarios |
 | 🏛️ Taxes | consolidated tax sources + payment calendar |
-| 📈 Markets & FX | watchlist, price analytics, currency signal engine with backtest, daily 🌍 Risk Radar |
+| 📈 Markets & FX | watchlist, price analytics, currency signal engine with backtest, daily 🌍 Risk Radar, on-demand keyless history backfill |
 | 💎 Equity / RSU | vesting schedule, Monte-Carlo projection, sell-vs-hold guidance |
 | 🚁 Side business | revenue/costs of self-employment or a side company |
 | 💼 Career tracker | inbound job offers, market barometer, commit-activity tracker |
@@ -59,6 +70,7 @@ The app **runs fully offline**. Live market data and alerts are opt-in:
   1. Create a free [Supabase](https://supabase.com) project with tables `market_prices` (`ticker, date, close, currency`) and `market_watchlist` (`ticker, notes`).
   2. Put keys in `.env` (copy `.env.example`): `SUPABASE_URL=…`, `SUPABASE_ANON_KEY=…`.
   3. Feed the table daily however you like — e.g. an [n8n](https://n8n.io) workflow pulling quotes from Yahoo/Stooq. Without this, market views simply show "no data".
+  - For any watchlist symbol the nightly sync doesn't cover deeply, a per-ticker **Deepen history** action backfills its full history straight from Yahoo (keyless, no setup) so the chart and indicators have depth.
 - **Data-freshness alerts (n8n → Telegram)** — importable workflow in [`integrations/n8n/`](integrations/n8n/) that messages you when the pipeline goes stale. Setup guide in its README.
 - **Stress test & withdrawal guardrails** — a deterministic "financial fire drill" (stocks −25%, rates +2pp, income stops) plus a Guyton-Klinger dynamic-withdrawal policy with guardrails in Forecasts; allocation drift follows the 5/25 rebalancing rule with editable targets.
 - **Built-in private AI** — the app never *requires* an LLM to function, and it ships the full client (`server/llm_local.py`) for a **local** [llama.cpp](https://github.com/ggml-org/llama.cpp) server, so AI features run on your machine and **your numbers never leave it**. See ["Built-in private AI"](#built-in-private-ai) below.
@@ -83,7 +95,7 @@ Then set `LOCAL_LLM_KEY=<secret>` (and optionally `LOCAL_LLM_URL`) in `.env`. Co
 - **AI second opinion on Recommendations** — the rule engine computes recommendations from your data; the AI reviews them (agrees/disagrees, what's missing) with your own numbers as context. One click in the Recommendations tab.
 - **Forecast narration** — turns the self-learning forecast journal into a plain-language *why*.
 - **A grounded ask-anything box** (Control Center) plus a keyless `/api/llm/chat` hook for your own scripts.
-- **It checks real numbers, not vibes** — the local model gets one tool: a **read-only SQL SELECT** against your database (`server/db_tools.py`). Asked "how far am I from my goals?", it queries the actual tables instead of guessing from text snippets. Defense in depth: the connection is opened read-only at the SQLite level, only a single SELECT passes validation, results are capped, and every round-trip lands in the prompt log. Servers without tool support just fall back to plain answers.
+- **It checks real numbers, not vibes** — the local model gets one tool: a **read-only SQL SELECT** against your database (`server/db_tools.py`). Asked "how far am I from my goals?", it queries the actual tables instead of guessing from text snippets. Defense in depth: the connection is opened read-only at the SQLite level, only a single SELECT passes validation, results are capped, and every round-trip lands in the prompt log — and the security review **actively pentests this guard** (injection/DDL/stacked-query payloads must all be refused). Servers without tool support just fall back to plain answers.
 
 **AI mode — local by default, cloud strictly opt-in.** The Control Center **AI mode** switch governs *all* of the above. Default: **local only** — every AI call stays on your machine. Flip to **local + Claude** and the app asks *both* engines, then **synthesizes one verdict** from the two answers (typically the best of both); the cloud model defaults to Anthropic's newest (`claude-fable-5`, configurable via `CLOUD_LLM_MODEL`). The UI warns plainly that this mode **sends the prompt and snippets of your data to Anthropic** — set your own `ANTHROPIC_API_KEY` in `.env` to enable it. All AI answers are framed by a rigorous financial-analyst system prompt (explicit assumptions, scenario ranges, opportunity-cost/tax, a one-line bottom line), and every question/answer is recorded in a **local prompt log** (Control Center) so you can see what was asked and whether the AI helps.
 
@@ -131,7 +143,7 @@ Your data is one local SQLite file, so a backup is just a copy — but a copy yo
 
 This repo is built to be safe to fork and contribute to:
 
-- `server/security_review.py` — a pentest-style suite: secret scan of the working tree **and the full git history**, dangerous-pattern static analysis (eval/exec, shell, SQL injection, debug, network binds), maintainer personal-data audit, config hygiene, endpoint smoke tests, and an **active probe of any local LLM server** (must reject keyless requests).
+- `server/security_review.py` — a pentest-style suite: secret scan of the working tree **and the full git history**, dangerous-pattern static analysis (eval/exec, shell, SQL injection, debug, network binds), maintainer personal-data audit, config hygiene, endpoint smoke tests, an **active probe of any local LLM server** (must reject keyless requests), and an **active pentest of the AI's SQL tool** — injection/DDL/stacked-query payloads must all be refused, the tool connection must be read-only at the SQLite layer, and a guard-efficacy test fails loudly if the guard is ever weakened.
 - Runs three ways: **Control Center button**, CLI (`cd server && python -m security_review --ci`), and **GitHub Actions** on every push/PR + weekly ([`.github/workflows/security.yml`](.github/workflows/security.yml)).
 - **Real test suite** — `pytest` in [`tests/`](tests/) (endpoint smoke across every GET route, goals/wealth CRUD, forecast math, RAG ranking incl. the semantic hybrid, backup/restore round-trip). CI enforces a **coverage floor** and a **bandit** security-lint gate; **Dependabot** watches dependencies. Run locally: `python -m pytest -q`.
 
