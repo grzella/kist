@@ -22,7 +22,7 @@ Mostly my own. Too many apps to check, a spreadsheet I kept forgetting to update
 ## Quick start
 
 ```bash
-git clone https://github.com/grzella/kist.git
+git clone https://github.com/grzella/kist-finance.git
 cd kist
 pip install -r requirements.txt
 ./run.sh                      # → opens http://127.0.0.1:8321
