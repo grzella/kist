@@ -1,6 +1,6 @@
-function marketBriefHtml(b) {
+function marketBriefHtml(b, controls) {
   if (!b || !b.headline) {
-    return `<div class="card"><h3 style="margin-top:0">🧭 Market brief</h3>
+    return `<div class="card"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">🧭 Market brief</h3>${controls || ""}</div>
       <div class="muted">No saved brief yet — key moves, macro context and a per-position stance,
         authored by you or any AI assistant. Fill it with the box below.</div>
       <details class="mt"><summary style="cursor:pointer"><b>➕ Fill it now</b> (paste JSON from any AI assistant)</summary>
@@ -26,8 +26,8 @@ function marketBriefHtml(b) {
   return `
     <div class="card" style="border-left:4px solid #4c8dff">
       <div class="row" style="justify-content:space-between;align-items:baseline">
-        <h3 style="margin:0">🧭 Market brief</h3>
-        <span class="muted" style="font-size:.82em">as of ${b.as_of || "—"}</span>
+        <h3 style="margin:0">🧭 Market brief</h3>${controls || ""}
+        <span class="muted" style="font-size:.82em">as of ${b.as_of || "—"}${b.generated_by ? ` · ${b.generated_by}` : ""}</span>
       </div>
       ${b.regime ? `<div class="mt" style="font-weight:600;color:#ffd166">${b.regime}</div>` : ""}
       <div class="mt">${b.headline}</div>
@@ -73,19 +73,16 @@ async function renderMarket(el) {
     ${(() => {
       const view = localStorage.getItem("brief_view") || "daily";
       const b = (briefs || {})[view];
-      const other = view === "daily" ? "weekly" : "daily";
-      return `
-      <div class="row" style="gap:8px;align-items:center;margin-bottom:6px">
-        <button data-briefview="daily" class="${view === "daily" ? "primary" : ""}">Daily</button>
-        <button data-briefview="weekly" class="${view === "weekly" ? "primary" : ""}">Weekly</button>
-        ${view === "daily" ? `<button id="briefRefresh" title="pull fresh quotes and regenerate">🔄 Fetch latest</button>` : ""}
-        <span class="muted" style="font-size:.8em">${b && b.as_of ? `as of ${b.as_of}${b.generated_by ? ` · ${b.generated_by}` : ""}` : `no ${view} brief yet`}
-          · daily regenerates each morning, weekly on Mondays (Data → Schedules)</span>
-      </div>
-      ${b && b.headline ? marketBriefHtml(b) : (view === "weekly" ? marketBriefHtml(b || {}) : `
-        <div class="card"><h3 style="margin-top:0">🧭 Market brief — daily</h3>
-        <div class="muted">No daily brief yet. It is generated each morning by the <b>local AI</b> from your cached quotes —
-        or click <b>🔄 Fetch latest</b> now (needs a running local model and at least one ticker in the watchlist).</div></div>`)}`;
+      const controls = `
+        <button data-briefview="daily" class="${view === "daily" ? "primary" : ""}" style="font-size:.85em">Daily</button>
+        <button data-briefview="weekly" class="${view === "weekly" ? "primary" : ""}" style="font-size:.85em">Weekly</button>
+        ${view === "daily" ? `<button id="briefRefresh" style="font-size:.85em" title="pull fresh quotes and regenerate">🔄 Fetch latest</button>` : ""}`;
+      if (b && b.headline) return marketBriefHtml(b, controls);
+      return `<div class="card"><div class="row" style="align-items:center;gap:8px;flex-wrap:wrap">
+        <h3 style="margin:0">🧭 Market brief</h3>${controls}</div>
+        <div class="muted mt" id="briefEmptyMsg">No ${view} brief yet — generating it now from your cached quotes…
+          (needs a running AI and at least one ticker; daily regenerates each morning, weekly on Mondays — Data → Schedules)</div>
+      </div>`;
     })()}
     <h3 class="mt">Watchlist</h3>
     <div class="muted" style="font-size:.82em;margin:2px 0 6px">Quotes come from your local cache. The 🌍 Risk Radar fetches its four tickers by itself (keyless Yahoo); everything else needs your own sync — see README › Connecting your own services.</div>
@@ -235,6 +232,16 @@ async function renderMarket(el) {
   el.querySelectorAll("[data-briefview]").forEach((b) => b.addEventListener("click", () => {
     localStorage.setItem("brief_view", b.dataset.briefview); route();
   }));
+  {
+    const view = localStorage.getItem("brief_view") || "daily";
+    if (!((briefs || {})[view] || {}).headline && !window._briefAutoTried) {
+      window._briefAutoTried = true;
+      api.post("/api/market/brief/refresh", { kind: view }).then((r) => {
+        if (r && r.ok) route();
+        else { const m = document.getElementById("briefEmptyMsg"); if (m) m.textContent = (r && r.error) || "generation failed — check AI mode in Control"; }
+      }).catch((e) => { const m = document.getElementById("briefEmptyMsg"); if (m) m.textContent = e.message; });
+    }
+  }
   const br = document.getElementById("briefRefresh");
   if (br) br.addEventListener("click", async () => {
     br.disabled = true; br.textContent = "🔄 generating…";

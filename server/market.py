@@ -998,7 +998,7 @@ def generate_brief(kind="daily"):
         by = llm_local.status().get("model", "local model")
     if not data:
         return {"ok": False, "error": "AI offline — start llama-server (Control → AI mode)"}
-    data["as_of"] = datetime.now().isoformat(timespec="minutes")
+    data["as_of"] = datetime.now().strftime("%Y-%m-%d, %H:%M")
     data["kind"] = kind
     data["generated_by"] = by
     set_settings({BRIEF_KEYS[kind]: json.dumps(data, ensure_ascii=False)})
