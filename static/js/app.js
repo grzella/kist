@@ -201,5 +201,14 @@ async function route() {
 
 applyLang();
 
+// mobile hamburger — the nav collapses under 860px
+const _navToggle = document.getElementById("navToggle");
+if (_navToggle) {
+  _navToggle.addEventListener("click", () =>
+    document.getElementById("nav").classList.toggle("open"));
+  document.querySelectorAll("#nav a").forEach((a) => a.addEventListener("click", () =>
+    document.getElementById("nav").classList.remove("open")));
+}
+
 window.addEventListener("hashchange", route);
 route();

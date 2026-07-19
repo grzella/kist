@@ -109,7 +109,7 @@ async function renderOffers(el) {
   const bpts = baro.points || [];
   const btbl = document.getElementById("baroTable");
   if (bpts.length) {
-    btbl.innerHTML = `<table><thead><tr><th>Month</th><th style="text-align:right">EM openings</th>
+    btbl.innerHTML = `<table><thead><tr><th>Month</th><th style="text-align:right">${data.roles.a}</th>
       <th style="text-align:right">${data.roles.b}</th><th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
       [...bpts].reverse().map((p) => `<tr><td>${p.month}</td>
         <td style="text-align:right">${p.em_openings != null ? fmt.grouped(p.em_openings) : "—"}</td>

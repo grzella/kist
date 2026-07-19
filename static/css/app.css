@@ -11,6 +11,14 @@ body { background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, 
 #nav a { color: var(--muted); text-decoration: none; padding: 6px 12px; border-radius: 6px; }
 #nav a.active { color: var(--text); background: var(--panel2); }
 #nav .status { margin-left: auto; color: var(--muted); font-size: 12px; }
+#navToggle { display: none; background: none; border: none; color: var(--text); font-size: 1.35em; cursor: pointer; padding: 2px 8px; }
+@media (max-width: 860px) {
+  #nav { flex-wrap: wrap; }
+  #navToggle { display: block; margin-left: auto; }
+  #nav a { display: none; width: 100%; }
+  #nav .status { display: none; }
+  #nav.open a { display: block; }
+}
 main { max-width: 1180px; margin: 22px auto; padding: 0 18px; }
 h2 { font-size: 18px; margin-bottom: 14px; }
 h3 { font-size: 14px; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
