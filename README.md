@@ -67,11 +67,12 @@ The app **runs fully offline**. Live market data and alerts are opt-in:
 
 The AI is not an add-on here — it's a core feature, designed so it **runs on your machine**. The app ships the whole AI stack (client, grounding, prompt log, safety checks); the only thing it cannot ship is the model weights themselves (gigabytes, licensed separately) — you fetch a model once with a single command below, and everything lights up. No model running? Every AI feature degrades gracefully to "offline" and the rest of the app is unaffected.
 
-**How the local LLM works.** You run a small open model (e.g. Qwen 2.5 3B) with [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server` — a local process exposing an OpenAI-compatible API on `localhost`. The app talks to it over HTTP; no API keys, no data egress, no per-call cost. Because it speaks the OpenAI API, the same setup works with LM Studio or Ollama. Where the answer must be machine-readable, the app sends a **JSON Schema and llama.cpp enforces it at the token level** (GBNF grammars) — the model physically cannot return malformed output.
+**How the local LLM works.** You run a small open model (recommended: **Qwen3 8B** — its toggleable thinking mode measurably helps multi-step financial math; any GGUF works) with [llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server` — a local process exposing an OpenAI-compatible API on `localhost`. The app talks to it over HTTP; no API keys, no data egress, no per-call cost. Because it speaks the OpenAI API, the same setup works with LM Studio or Ollama. Where the answer must be machine-readable, the app sends a **JSON Schema and llama.cpp enforces it at the token level** (GBNF grammars) — the model physically cannot return malformed output. On Qwen3 the app toggles thinking per task: on for analysis, off for quick structured calls.
 
 ```bash
 brew install llama.cpp        # or build from source; any OpenAI-compatible server works
-llama-server -hf bartowski/Qwen2.5-3B-Instruct-GGUF:Q4_K_M --port 8080 --api-key <secret>
+llama-server -hf bartowski/Qwen3-8B-GGUF:Q4_K_M --port 8080 --api-key <secret> \
+    --spec-type ngram-simple  # free speedup: drafts repeated n-grams (great for JSON), no second model needed
 ```
 
 Then set `LOCAL_LLM_KEY=<secret>` (and optionally `LOCAL_LLM_URL`) in `.env`. Control Center shows the model's status, and the security review actively **probes the local server to confirm it rejects keyless requests**. Without a running server, AI features simply report "offline"; nothing breaks.
@@ -81,6 +82,7 @@ Then set `LOCAL_LLM_KEY=<secret>` (and optionally `LOCAL_LLM_URL`) in `.env`. Co
 - **AI second opinion on Recommendations** — the rule engine computes recommendations from your data; the AI reviews them (agrees/disagrees, what's missing) with your own numbers as context. One click in the Recommendations tab.
 - **Forecast narration** — turns the self-learning forecast journal into a plain-language *why*.
 - **A grounded ask-anything box** (Control Center) plus a keyless `/api/llm/chat` hook for your own scripts.
+- **It checks real numbers, not vibes** — the local model gets one tool: a **read-only SQL SELECT** against your database (`server/db_tools.py`). Asked "how far am I from my goals?", it queries the actual tables instead of guessing from text snippets. Defense in depth: the connection is opened read-only at the SQLite level, only a single SELECT passes validation, results are capped, and every round-trip lands in the prompt log. Servers without tool support just fall back to plain answers.
 
 **AI mode — local by default, cloud strictly opt-in.** The Control Center **AI mode** switch governs *all* of the above. Default: **local only** — every AI call stays on your machine. Flip to **local + Claude** and the app asks *both* engines, then **synthesizes one verdict** from the two answers (typically the best of both); the cloud model defaults to Anthropic's newest (`claude-fable-5`, configurable via `CLOUD_LLM_MODEL`). The UI warns plainly that this mode **sends the prompt and snippets of your data to Anthropic** — set your own `ANTHROPIC_API_KEY` in `.env` to enable it. All AI answers are framed by a rigorous financial-analyst system prompt (explicit assumptions, scenario ranges, opportunity-cost/tax, a one-line bottom line), and every question/answer is recorded in a **local prompt log** (Control Center) so you can see what was asked and whether the AI helps.
 
@@ -95,6 +97,14 @@ LOCAL_EMBED_URL=http://127.0.0.1:8081/v1
 ```
 
 Embeddings are stored per chunk (L2-normalized) and cosine similarity is computed in plain Python — no vector DB, no SQLite extension. Without an embedding server everything stays lexical; Control Center shows how many chunks are embedded.
+
+Optionally add a **third retrieval stage — a reranker**: the hybrid picks ~20 candidates, a small cross-encoder re-orders them by true relevance and only the top few reach the model. Same graceful pattern:
+
+```bash
+llama-server -hf gpustack/bge-reranker-v2-m3-GGUF --embedding --pooling rank --port 8082
+# in .env:
+LOCAL_RERANK_URL=http://127.0.0.1:8082/v1
+```
 
 ## Backups
 

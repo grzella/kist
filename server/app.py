@@ -486,8 +486,32 @@ def _ai_answer(prompt, system=None, use_rag=True):
     ctx = rag.context_for(prompt) if use_rag else ""
     ask = (ctx + "\n\nQuestion: " + prompt) if ctx else prompt
     out = {"mode": mode, "rag_used": bool(ctx)}
-    lt = llm_local.chat(ask, system=system)
-    out["local"] = {"ok": lt is not None, "text": lt, "label": llm_local.status().get("model", "local")}
+    # Local model gets a read-only SQL tool: it can CHECK real numbers in the
+    # database instead of guessing from RAG excerpts. Falls back to plain chat
+    # when the server has no tool support (or the tool run yields nothing).
+    lt, via_tools = None, False
+    try:
+        import db_tools
+        sch = db_tools.schema_summary()
+        if sch:
+            tools = [{"type": "function", "function": {
+                "name": "query_db",
+                "description": "Run ONE read-only SQL SELECT against the user's "
+                               "local finance database (SQLite) to check real "
+                               "numbers before answering. Tables: " + sch,
+                "parameters": {"type": "object", "required": ["sql"],
+                               "properties": {"sql": {"type": "string",
+                                   "description": "a single SELECT statement"}}}}}]
+            lt = llm_local.chat_with_tools(ask, tools,
+                                           {"query_db": db_tools.run_select},
+                                           system=system)
+            via_tools = lt is not None
+    except Exception:
+        lt = None
+    if lt is None:
+        lt = llm_local.chat(ask, system=system, think=True)
+    out["local"] = {"ok": lt is not None, "text": lt, "tools": via_tools,
+                    "label": llm_local.status().get("model", "local")}
     if mode == "both":
         ct = llm_cloud.chat(ask, system=system)
         out["cloud"] = {"ok": ct is not None, "text": ct, "label": llm_cloud.status().get("model", "Claude")}

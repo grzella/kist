@@ -255,8 +255,17 @@ def search(query, k=5):
         if score > 0:
             scored.append((score, rows[i]))
     scored.sort(key=lambda x: -x[0])
+
+    # optional third stage: a local reranker re-orders a wider candidate pool
+    # by true relevance (LOCAL_RERANK_URL); without one the hybrid order stands
+    pool = scored[:max(k * 4, 20)]
+    if len(pool) > k:
+        import llm_local
+        order = llm_local.rerank(query, [r["text"] for _, r in pool], top_n=k)
+        if order:
+            pool = [pool[i] for i in order if i < len(pool)]
     return [{"source": r["source"], "ref": r["ref"], "text": r["text"], "score": round(s, 3)}
-            for s, r in scored[:k]]
+            for s, r in pool[:k]]
 
 
 def context_for(query, k=6, max_chars=2200):

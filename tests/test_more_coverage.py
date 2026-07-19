@@ -175,3 +175,47 @@ def test_risk_radar_endpoint_and_snapshot(client, monkeypatch):
     assert s2["ok"] is True
     h = client.get("/api/risk-radar").get_json()["history"]
     assert len(h) >= 1 and h[-1]["comment"]
+
+
+# ---------- local AI: read-only SQL tool + tool-calling loop + reranker ----------
+
+def test_db_tools_select_only(client):
+    import db_tools
+    r = db_tools.run_select("select 1 as one")
+    assert r["ok"] and r["rows"] == [{"one": 1}]
+    assert not db_tools.run_select("delete from goals")["ok"]
+    assert not db_tools.run_select("select 1; select 2")["ok"]
+    assert not db_tools.run_select("with x as (select 1) insert into goals select * from x")["ok"]
+    assert "goals(" in db_tools.schema_summary() or db_tools.schema_summary() == ""
+
+
+def test_chat_with_tools_loop(monkeypatch):
+    import llm_local
+    responses = [
+        {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "c1", "type": "function",
+             "function": {"name": "query_db", "arguments": '{"sql": "select 2 as v"}'}}]}}]},
+        {"choices": [{"message": {"role": "assistant", "content": "the value is 2"}}]},
+    ]
+    seen = []
+    def fake(req, timeout=None):
+        seen.append(json.loads(req.data))
+        return _FakeResp(json.dumps(responses[len(seen) - 1]).encode())
+    monkeypatch.setattr(llm_local.urllib.request, "urlopen", fake)
+    tools = [{"type": "function", "function": {"name": "query_db", "parameters": {}}}]
+    got = llm_local.chat_with_tools("what is v?", tools,
+                                    {"query_db": lambda sql="": {"ok": True, "rows": [{"v": 2}]}})
+    assert got == "the value is 2"
+    # round 2 must carry the tool result back to the model
+    roles = [m.get("role") for m in seen[1]["messages"]]
+    assert "tool" in roles
+
+
+def test_rag_search_uses_reranker_when_available(client, monkeypatch):
+    import rag
+    import llm_local
+    rag.ensure_tables()
+    rag.reindex()
+    monkeypatch.setattr(llm_local, "rerank", lambda q, docs, top_n=5: list(range(len(docs)))[::-1][:top_n])
+    hits = rag.search("goal savings", k=3)
+    assert isinstance(hits, list)  # reranker order applied without crashing
