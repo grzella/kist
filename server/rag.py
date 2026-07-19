@@ -41,8 +41,25 @@ def ensure_tables():
         pass  # column already exists
 
 
+
+_SUFFIXES = ("iami", "ami", "ach", "owie", "ów", "om", "em", "ecie",
+             "ing", "ed", "es", "ie", "y", "e", "a", "i", "u", "ą", "ę", "o", "s")
+
+
+def _stem(t):
+    """Light suffix stripping (PL inflection + EN plurals) so 'cele' matches
+    'cel' and 'goals' matches 'goal'. Crude but effective for BM25 recall."""
+    if len(t) <= 3 or t.isdigit():
+        return t
+    for suf in _SUFFIXES:
+        if t.endswith(suf) and len(t) - len(suf) >= 3:
+            return t[: len(t) - len(suf)]
+    return t
+
+
 def _tok(s):
-    return [t for t in _TOKEN.findall((s or "").lower()) if len(t) >= 2 and t not in _STOP]
+    return [_stem(t) for t in _TOKEN.findall((s or "").lower())
+            if len(t) >= 2 and t not in _STOP]
 
 
 def _normalize(vec):
@@ -92,6 +109,32 @@ def _gather():
     try:
         for s in eb._rows("select key, value from app_settings where key like 'analysis_%'"):
             add("analysis", s.get("key"), f"{s.get('key')}: {s.get('value','')}")
+    except Exception:
+        pass
+    try:
+        for d in eb._rows("select * from debts"):
+            add("debt", d.get("name"), f"Debt: {d.get('name')} — balance {d.get('balance')}, "
+                f"rate {d.get('interest_rate')}%, installment {d.get('minimum_payment')}/mo".strip())
+    except Exception:
+        pass
+    try:
+        import planner
+        w = planner.wealth_summary()
+        for it in (w.get("items") or []):
+            if it.get("latest_value"):
+                add("wealth-value", it.get("name"),
+                    f"{it.get('name')} ({it.get('kind','')}): current value {round(it['latest_value'])}")
+        add("profile", "summary",
+            f"Financial profile: net worth ~{round(w.get('total',0) - w.get('debt_total',0))}, "
+            f"assets {round(w.get('total',0))}, debts {round(w.get('debt_total',0))}.")
+    except Exception:
+        pass
+    try:
+        import planner
+        b = planner.biz_summary()
+        add("business-total", "totals",
+            f"Business totals: revenue {b.get('total_revenue')}, costs {b.get('total_cost')}, "
+            f"result {b.get('total_result')}.")
     except Exception:
         pass
     # derived data (computed by planner) — recommendations and reminders
@@ -216,7 +259,7 @@ def search(query, k=5):
             for s, r in scored[:k]]
 
 
-def context_for(query, k=4, max_chars=1400):
+def context_for(query, k=6, max_chars=2200):
     """A context block to inject into an LLM prompt (or '' when nothing matches)."""
     hits = search(query, k=k)
     if not hits:

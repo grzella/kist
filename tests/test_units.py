@@ -9,8 +9,12 @@ sys.path.insert(0, str(ROOT / "server"))
 def test_rag_tokenizer_drops_stopwords_and_short():
     import rag
     toks = rag._tok("The mortgage on the house is 300000 EUR")
-    assert "mortgage" in toks and "house" in toks and "300000" in toks
+    assert "300000" in toks and len(toks) >= 3
     assert "the" not in toks and "on" not in toks  # stopwords/short removed
+    # light stemming: inflection doesn't block matches (goals→goal, houses→house)
+    assert rag._tok("goals")[0] == rag._tok("goal")[0]
+    assert rag._tok("mortgages")[0] == rag._tok("mortgage")[0]
+    assert rag._tok("houses")[0] == rag._tok("house")[0]
 
 
 def test_rag_bm25_ranks_relevant_first(client):
