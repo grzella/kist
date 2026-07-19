@@ -6,10 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 ## [Unreleased]
 
 ### Added
-- **Live demo on GitHub Pages**: the real UI with the fake "Alex Demo" persona, fully clickable and read-only — `demo/build_demo.py` seeds a throwaway DB, snapshots every GET endpoint to JSON and assembles `dist/`; api.js serves those snapshots when `KIST_STATIC_DEMO` is set (writes become a friendly toast). Deployed by `.github/workflows/demo-pages.yml` on every push + weekly (fresh market charts).
+- **Experience distillation** (`server/experience.py`): a good answer can be distilled — one click, **💡 Learn from this** in the prompt log — into a transferable lesson stored in `agent_experiences`, indexed into RAG and injected as guidance on similar future questions. Self-evolution without retraining (*AI Agents in Depth*, ch. 8); human-gated, prunable (**🧠 Learned experiences** panel), fully local. `/api/experience`, `/api/experiences`.
+- **Live demo on GitHub Pages**: the real UI with the fake "Alex Demo" persona, fully clickable and read-only — `demo/build_demo.py` seeds a throwaway DB, snapshots every GET endpoint to JSON and assembles `dist/`; api.js serves those snapshots when `KIST_STATIC_DEMO` is set (writes become a friendly toast). Deployed by `.github/workflows/demo-pages.yml` on the canonical repo (push + weekly).
+- **Mobile navigation**: the top nav collapses into a hamburger below 860px.
+- **RSU respects the base currency**: values convert via `USD<base>=X` (or stay in USD when the base is USD) instead of always going through USD/PLN; the FX labels adapt.
+
+### Changed
+- **Commit tracker** no longer auto-scans your home folder for git repos (a fresh clone would show unrelated repos' commits, from every author). It stays empty until you connect `gh` or set `commit_repos`; the view and health check show setup steps instead.
 
 ### Fixed
 - `market.fetch_yahoo_history` crashed with a NameError (`eb` undefined) — every `/api/market/deepen` call silently failed; now writes through `db.get_conn()`.
+- Dashboard: the KPI grid (net worth / income / costs / surplus) was flush against the business card above — added the missing top margin.
 
 ## [2026-07-19]
 
