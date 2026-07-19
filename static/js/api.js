@@ -1,10 +1,39 @@
+// ---------- STATIC DEMO (GitHub Pages) — GETs come from baked JSON snapshots,
+// writes are a friendly no-op. Set by demo/build_demo.py; never true in the real app.
+function demoStatic() { return !!window.KIST_STATIC_DEMO; }
+function demoSnapshotPath(p) {
+  return "demo-data/" + p.replace(/^\//, "").replace(/[^A-Za-z0-9._-]/g, "_") + ".json";
+}
+let _demoToastAt = 0;
+function demoToast() {
+  if (Date.now() - _demoToastAt < 4000) return;
+  _demoToastAt = Date.now();
+  let t = document.getElementById("demoToast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "demoToast";
+    t.style.cssText = "position:fixed;bottom:16px;left:50%;transform:translateX(-50%);" +
+      "background:#2c3040;color:#eee;padding:8px 14px;border-radius:8px;z-index:9999;" +
+      "font-size:.9em;box-shadow:0 2px 12px rgba(0,0,0,.4)";
+    document.body.appendChild(t);
+  }
+  t.textContent = "🔒 Read-only demo — changes aren't saved. Clone the repo to use it for real.";
+  t.style.display = "block";
+  clearTimeout(t._hid);
+  t._hid = setTimeout(() => { t.style.display = "none"; }, 3500);
+}
+
 const api = {
   async get(path) {
-    const r = await fetch(path);
+    const r = await fetch(demoStatic() ? demoSnapshotPath(path) : path);
     if (!r.ok) throw new Error(`${r.status} ${await r.text()}`);
     return r.json();
   },
   async send(method, path, body) {
+    if (demoStatic()) {
+      demoToast();
+      return { ok: false, demo: true, error: "Read-only demo — changes aren't saved." };
+    }
     const r = await fetch(path, {
       method,
       headers: { "Content-Type": "application/json" },

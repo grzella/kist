@@ -5,7 +5,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 
 ## [Unreleased]
 
-_Nothing yet — the latest work is released under 2026-07-19 below._
+### Added
+- **Live demo on GitHub Pages**: the real UI with the fake "Alex Demo" persona, fully clickable and read-only — `demo/build_demo.py` seeds a throwaway DB, snapshots every GET endpoint to JSON and assembles `dist/`; api.js serves those snapshots when `KIST_STATIC_DEMO` is set (writes become a friendly toast). Deployed by `.github/workflows/demo-pages.yml` on every push + weekly (fresh market charts).
+
+### Fixed
+- `market.fetch_yahoo_history` crashed with a NameError (`eb` undefined) — every `/api/market/deepen` call silently failed; now writes through `db.get_conn()`.
 
 ## [2026-07-19]
 

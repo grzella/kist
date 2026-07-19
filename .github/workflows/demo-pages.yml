@@ -1,0 +1,43 @@
+# Builds the static, clickable demo (fake "Alex Demo" persona, read-only)
+# and publishes it to GitHub Pages. Weekly cron keeps the market charts fresh.
+name: demo-pages
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 6 * * 1" # Monday morning — refresh Yahoo history in the demo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python demo/build_demo.py --out dist
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
