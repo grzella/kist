@@ -11,6 +11,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); version
 - **Mobile navigation**: the top nav collapses into a hamburger below 860px.
 - **RSU respects the base currency**: values convert via `USD<base>=X` (or stay in USD when the base is USD) instead of always going through USD/PLN; the FX labels adapt.
 
+- **Allocation**: the pre-filled targets are now labelled as a **📐 Model** (textbook reference) in their own column, with an intro that explains the initial drift is measured against that model until you set your own targets.
+- **LLM contract tests** (`tests/test_llm_contract.py`): a new test kind that mocks the model and asserts harness invariants — graceful offline degradation, the pipeline always logs and returns a `best`, local mode never calls the cloud, a failed brief keeps the saved one. Plus coverage for the wizard's module→view gating, the RSU base-currency rate and price rounding.
+
 ### Changed
 - **Commit tracker** no longer auto-scans your home folder for git repos (a fresh clone would show unrelated repos' commits, from every author). It stays empty until you connect `gh` or set `commit_repos`; the view and health check show setup steps instead.
 
