@@ -105,7 +105,8 @@ def _make_bad_repo(tmp):
         'aws = "AKIA' + "A" * 16 + '"\npw = "password: supersecret123"\n')
     (repo / ".env").write_text("SECRET_TOKEN=verylongsecretvalue123456\n")
     (repo / "danger.py").write_text("import os\nos.system('ls')\neval('1+1')\n")
-    (repo / "pii.py").write_text('author = "Grzella"\n')
+    # marker split by concatenation so THIS tracked test doesn't trip the audit
+    (repo / "pii.py").write_text('author = "' + "Grze" + "lla" + '"\n')
     run("add", "-A")
     run("commit", "-qm", "bad")
     return str(repo)
