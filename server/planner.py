@@ -1950,10 +1950,6 @@ def data_inventory():
         {"key": "manual_reg", "title": "\U0001F7E1 Manual \u2014 regular (what we want to reduce)",
          "note": "The only things you actually enter each month. Goal: bring this down to the minimum.",
          "items": [
-            item("Account balances / cash", "manual", "you (Wealth tab)",
-                 "monthly", acc_last, acc_c, minutes=3,
-                 note="the most manual point \u2014 banks have no open API without an integration",
-                 suggest="n8n + GoCardless/Nordigen (free EU PSD2) \u2192 daily balance with no typing"),
             item("Portfolio value (broker/ETF)", "manual", "you (portfolio setting + wealth items)",
                  "monthly / on trade", wv_last, wi_c, minutes=3,
                  note="today you enter the VALUE by hand",
@@ -2005,11 +2001,6 @@ def data_inventory():
          "saves": "~1 min/mo + consistency",
          "how": "Compute the saved amount from (liquid accounts \u2212 safety buffer) instead of a separate field. "
                 "One source of truth instead of two."},
-        {"title": "Account balances via PSD2 (GoCardless/Nordigen)",
-         "impact": "high", "effort": "medium",
-         "saves": "~3 min/mo \u2014 removes the last manual point",
-         "how": "Free EU banking API (Open Banking). n8n fetches the balance daily into Supabase, "
-                "the app reads it like rates. Zero monthly balance entry remains."},
         {"title": "Business revenue auto-pulled from the pipeline",
          "impact": "medium", "effort": "medium",
          "saves": "~2 min/mo",
@@ -2292,15 +2283,16 @@ def _github_contribution_calendar(days=90):
     frm = (now - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
     to = now.strftime("%Y-%m-%dT23:59:59Z")
     query = (
-        'query { viewer { contributionsCollection(from: "%s", to: "%s") {'
-        ' login totalCommitContributions totalPullRequestContributions'
+        'query { viewer { login contributionsCollection(from: "%s", to: "%s") {'
+        ' totalCommitContributions totalPullRequestContributions'
         ' totalIssueContributions totalPullRequestReviewContributions'
         ' contributionCalendar { weeks { contributionDays { date contributionCount } } }'
         ' } } }' % (frm, to))
     try:
         out = subprocess.run(["gh", "api", "graphql", "-f", f"query={query}"],
                              capture_output=True, text=True, timeout=15)
-        data = _json.loads(out.stdout)["data"]["viewer"]["contributionsCollection"]
+        viewer = _json.loads(out.stdout)["data"]["viewer"]
+        data = viewer["contributionsCollection"]
     except Exception:
         return None
     counts = {}
@@ -2309,7 +2301,7 @@ def _github_contribution_calendar(days=90):
             counts[d["date"]] = d["contributionCount"]
     cache = {"at": datetime.now().isoformat(timespec="seconds"), "days": days,
              "counts": counts,
-             "totals": {"login": data.get("login"),
+             "totals": {"login": viewer.get("login"),
                         "commits": data["totalCommitContributions"],
                         "prs": data["totalPullRequestContributions"],
                         "issues": data["totalIssueContributions"],

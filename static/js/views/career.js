@@ -1,12 +1,47 @@
 async function renderCareer(el) {
   const a = await api.get("/api/analysis/career").catch(() => ({}));
   if (!a.headline) {
-    el.innerHTML = '<div class="card"><h2>Career</h2><div class="muted">No analysis. Ask Claude: "refresh the career analysis".</div></div>';
+    el.innerHTML = `<div class="card"><h2>Career</h2>
+    <details style="margin:6px 0 12px;padding:8px 12px;background:#4c8dff14;border-radius:8px">
+      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting</summary>
+      <div class="muted" style="font-size:.87em;margin-top:6px">This tab watches the <b>job market as a signal</b>, the same way the Market tab watches stock prices:
+        what is the sentiment around your role, how many offers reach you <i>without applying anywhere</i>, and how demand shifts over time —
+        especially as AI reshapes engineering roles. Tracking inbound offers measures your market value and the health of your niche;
+        it is not a sign of looking for a new job. Think of it as a personal labor-market index.</div>
+    </details>
+    <div class="muted">No career analysis yet — a comp-ladder snapshot, growth paths and skill bets, authored by you or any AI assistant. Fill it with the box below.</div>
+    <details class="mt"><summary style="cursor:pointer"><b>➕ Fill it now</b> (paste JSON from any AI assistant)</summary>
+      <div class="muted mt" style="font-size:.85em">1) Click <b>Copy AI prompt</b> and paste it into any assistant (ChatGPT, Claude, the local model…). 2) Paste the JSON it returns below. 3) Save.</div>
+      <div class="row mt" style="gap:8px">
+        <button data-copyprompt>📋 Copy AI prompt</button>
+        <span class="muted" data-copied style="font-size:.8em"></span>
+      </div>
+      <textarea data-paste rows="5" class="mt" style="width:100%" placeholder='{"headline": "...", ...}'></textarea>
+      <button class="primary mt" data-savejson>Save</button>
+    </details></div>`;
+    const PROMPT = `Prepare a long-term career analysis for me and return ONLY valid JSON: {"headline": str, "as_of": "YYYY-MM-DD", "target_role": str, "comp_levels": [{"role": str, "comp": str, "you": bool}], "money_paths": [{"tag": "A|B|C", "title": str, "verdict": str, "text": str}], "head_of_eng": str, "ai_impact": [str], "skills": [{"skill": str, "why": str}], "skills_note": str}. Interview me about my situation first.`;
+    el.querySelector("[data-copyprompt]").addEventListener("click", async (e) => {
+      await navigator.clipboard.writeText(PROMPT);
+      el.querySelector("[data-copied]").textContent = "copied ✓";
+    });
+    el.querySelector("[data-savejson]").addEventListener("click", async () => {
+      const raw = el.querySelector("[data-paste]").value.trim();
+      try { JSON.parse(raw); } catch (err) { alert("That is not valid JSON: " + err.message); return; }
+      await api.put("/api/settings", { analysis_career: raw });
+      route();
+    });
     return;
   }
   el.innerHTML = `
     <div class="muted" style="margin-bottom:4px"><a href="#offers" style="text-decoration:none">← Career (offers and market)</a></div>
     <h2>🧭 Career — long-term growth analysis</h2>
+    <details style="margin:6px 0 12px;padding:8px 12px;background:#4c8dff14;border-radius:8px">
+      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting</summary>
+      <div class="muted" style="font-size:.87em;margin-top:6px">This tab watches the <b>job market as a signal</b>, the same way the Market tab watches stock prices:
+        what is the sentiment around your role, how many offers reach you <i>without applying anywhere</i>, and how demand shifts over time —
+        especially as AI reshapes engineering roles. Tracking inbound offers measures your market value and the health of your niche;
+        it is not a sign of looking for a new job. Think of it as a personal labor-market index.</div>
+    </details>
     <div class="card" style="border-left:4px solid #3ecf8e">
       <div style="font-size:1.05em"><b>${a.headline}</b></div>
       <div class="muted mt" style="font-size:.82em">As of ${a.as_of}.</div>
