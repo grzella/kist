@@ -158,9 +158,17 @@ def test_risk_radar_scoring_on_seeded_prices(client):
 
 def test_risk_radar_endpoint_and_snapshot(client, monkeypatch):
     import llm_local
+    import risk_radar
+    import engine_bridge as eb
+    from datetime import date
     monkeypatch.setattr(llm_local, "chat", lambda *a, **k: "elevated risk, stay the course")
+    monkeypatch.setattr(risk_radar, "_yahoo_fetch", lambda *a, **k: 0)  # no network
     r = client.get("/api/risk-radar").get_json()
     assert "score" in r and "components" in r and "history" in r
+    # earlier endpoint sweeps / run_due may have stored today's row (AI offline);
+    # clear it so this test owns today's snapshot
+    risk_radar.ensure_tables()
+    eb._exec("delete from risk_radar_history where date=?", (date.today().isoformat(),))
     s1 = client.post("/api/risk-radar/snapshot").get_json()
     assert s1["ok"] is True
     s2 = client.post("/api/risk-radar/snapshot").get_json()   # idempotent per day
