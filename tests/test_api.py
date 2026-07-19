@@ -102,6 +102,22 @@ def test_app_config_accepts_dict_and_list_modules(client):
     client.post("/api/app-config", json={"modules": {m["id"]: True for m in d["registry"]}})
 
 
+def test_wizard_module_toggle_gates_views(client):
+    """The wizard's core promise: disabled modules disappear from the UI. Enabling a
+    module surfaces its view(s) in enabled_views; disabling it hides them; core views
+    are always present regardless."""
+    d = client.post("/api/app-config", json={
+        "modules": ["markets"], "wizard_completed": True}).get_json()
+    assert d["wizard_completed"] is True
+    assert {"market", "currency"} <= set(d["enabled_views"])   # markets → both its views
+    assert "rsu" not in d["enabled_views"]                      # disabled module hidden
+    assert "dashboard" in d["enabled_views"]                    # core always on
+    d2 = client.post("/api/app-config", json={"modules": ["rsu"]}).get_json()
+    assert "rsu" in d2["enabled_views"] and "market" not in d2["enabled_views"]
+    # restore defaults so other tests see all views
+    client.post("/api/app-config", json={"modules": {m["id"]: True for m in d["registry"]}})
+
+
 def test_wealth_item_crud(client):
     iid = client.post("/api/wealth/items",
                       json={"name": "Test asset", "kind": "investment", "value": 1000}).get_json()["id"]

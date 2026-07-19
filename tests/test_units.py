@@ -190,3 +190,41 @@ def test_experience_distillation_roundtrip(client, monkeypatch):
     assert experience.listing() == []
     rag.reindex()
     assert not any(h["source"] == "experience" for h in rag.search("overpay loan invest", k=6))
+
+
+def test_usd_base_rate_respects_base_currency(client, monkeypatch):
+    """RSU/market values convert via the base currency: USD base → 1.0 (no FX pair
+    needed), otherwise the USD<base>=X rate from the cache."""
+    import market, planner
+    planner.set_settings({"base_currency": "USD"})
+    assert market._usd_base_rate()[0] == 1.0
+    planner.set_settings({"base_currency": "PLN"})
+    monkeypatch.setattr(market, "prices", lambda t, days=10:
+                        [{"date": "2026-07-01", "close": 3.9}] if t == "USDPLN=X" else [])
+    rate, d = market._usd_base_rate()
+    assert rate == 3.9 and d == "2026-07-01"
+    planner.set_settings({"base_currency": "PLN"})  # leave a known state
+
+
+def test_github_activity_unconfigured_returns_empty(client, monkeypatch):
+    """A fresh clone with no commit_repos and no gh must NOT scrape the home folder —
+    it returns configured:false with zeros so the UI shows setup steps, never someone
+    else's numbers."""
+    import planner
+    monkeypatch.setattr(planner, "_github_contribution_calendar", lambda days=90: None)
+    ga = planner.github_activity(days=30)
+    assert ga["configured"] is False
+    assert ga["today"] == 0 and ga["repos"] == 0 and len(ga["series"]) == 30
+
+
+def test_analytics_rounds_displayed_price(client, monkeypatch):
+    """Displayed prices are rounded to 2dp at source (no raw Yahoo float like
+    333.739990234375 leaking into the UI)."""
+    import market
+    series = [{"date": f"2026-0{1 + i // 28}-{1 + i % 28:02d}", "close": 100.0 + i,
+               "currency": "USD"} for i in range(60)]
+    series[-1]["close"] = 333.739990234375
+    monkeypatch.setattr(market, "prices", lambda t, days=365: series)
+    a = market.analytics("TESTX")
+    assert a["last_close"] == 333.74
+    assert a["high_52w"] == round(a["high_52w"], 2)
