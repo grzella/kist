@@ -228,3 +228,31 @@ def test_analytics_rounds_displayed_price(client, monkeypatch):
     a = market.analytics("TESTX")
     assert a["last_close"] == 333.74
     assert a["high_52w"] == round(a["high_52w"], 2)
+
+
+def test_barometer_index_trend_config_and_backcompat(client):
+    """The barometer is configurable (roles/geo), computes an index (base 100) +
+    3-month % + a direction reading, accepts both the legacy em/head shape and the
+    new per-role counts shape, and re-keys its series when roles are reconfigured."""
+    import planner, json
+    # default config (public: from career_role_a/b)
+    cfg = planner.barometer_config()
+    keys = [r["key"] for r in cfg["roles"]]
+    assert len(keys) == 2
+    # legacy shape (back-compat) + new counts shape (n8n collector)
+    planner.add_barometer_point({"month": "2026-04", "em_openings": 40, "head_openings": 10})
+    planner.add_barometer_point({"month": "2026-05", "em_openings": 44, "head_openings": 11})
+    planner.add_barometer_point({"month": "2026-06", "em_openings": 52, "head_openings": 9})
+    planner.add_barometer_point({"month": "2026-07",
+                                 "counts": {keys[0]: 60, keys[1]: 12},
+                                 "sources": "JSearch", "geo": "Remote", "as_of": "2026-07-19"})
+    b = planner.list_barometer()
+    s0 = b["series"][keys[0]]
+    assert s0["index"][0] == 100.0 and s0["index"][-1] == 150.0   # 40 -> 60 = 150
+    assert s0["q_pct"] == 50.0 and s0["reading"] == "growing"
+    assert b["points"][-1]["sources"] == "JSearch" and b["points"][-1]["counts"][keys[0]] == 60
+    # reconfigure roles -> series re-keys
+    planner.set_settings({"barometer_config": json.dumps(
+        {"geo": ["US"], "roles": [{"key": "pm", "label": "Product Manager", "query": "product manager"}]})})
+    b2 = planner.list_barometer()
+    assert list(b2["series"]) == ["pm"] and b2["geo"] == ["US"]

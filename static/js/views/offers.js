@@ -41,10 +41,12 @@ async function renderOffers(el) {
     <div class="muted" style="margin:6px 0 12px;font-size:.88em">Reference point (auto): <b>${s ? fmt.pln(s.current) : "—"}</b>/mo —
       current total (base + bonus + RSU, computed dynamically from the RSU stock price). Offer deltas and goal impact are computed against this.</div>
     <div class="card" id="baroCard">
-      <h3>📈 Market barometer — demand for ${data.roles.a} / ${data.roles.b} roles (+ your inbound)</h3>
-      <div class="muted" style="font-size:.85em;margin-bottom:8px">Total open roles on your market for the two roles you track (rename them in Settings: career_role_a / career_role_b) — a monthly trend against your inbound (bars).
-        Shows whether the growing number of inquiries to you is your brand or market growth (and whether AI is shrinking it).
-        <b>Updated by Claude monthly</b> (research across board aggregates: Glassdoor / Indeed / Remote Rocketship) — you compute nothing by hand.</div>
+      <div class="row" style="justify-content:space-between;align-items:baseline;flex-wrap:wrap">
+        <h3 style="margin:0">📈 Market barometer — demand for your roles (index + your inbound)</h3>
+        <button id="baroCfg" style="font-size:.78em">⚙️ roles / geography</button>
+      </div>
+      <div class="muted" style="font-size:.85em;margin:6px 0 8px" id="baroDesc">Demand trend for your roles as an <b>index (base 100)</b> — not a raw count, which depends on how it's collected and misleads. Against your inbound (bars) it shows whether growing inquiries are your brand or the market (and whether AI is shrinking it). Raw counts and source are in the tooltip.</div>
+      <div id="baroCfgBox" style="display:none" class="mt"></div>
       <canvas id="baroChart" height="95" class="mt"></canvas>
       <div id="baroTable" class="mt"></div>
     </div>
@@ -104,44 +106,83 @@ async function renderOffers(el) {
     }).join("");
   }
 
-  // --- market barometer ---
-  const baro = await api.get("/api/market-barometer").catch(() => ({ points: [] }));
+  // --- market barometer (index + trend, roles from config) ---
+  const baro = await api.get("/api/market-barometer").catch(() => ({ points: [], roles: [], series: {}, geo: [] }));
   const bpts = baro.points || [];
+  const broles = baro.roles || [];
+  const bser = baro.series || {};
+  const geoTxt = (baro.geo || []).join(", ") || "—";
+  const bdesc = document.getElementById("baroDesc");
+  if (bdesc) bdesc.innerHTML += ` <span class="muted">Geography: <b>${geoTxt}</b>.</span>`;
+
+  const cfgBtn = document.getElementById("baroCfg"); const cfgBox = document.getElementById("baroCfgBox");
+  if (cfgBtn && cfgBox) cfgBtn.addEventListener("click", () => {
+    if (cfgBox.style.display === "none") {
+      cfgBox.style.display = "block";
+      cfgBox.innerHTML = `<div class="muted" style="font-size:.82em">Geography (comma-separated) and roles (one per line, <code>Label = title query</code>). The n8n collector uses the <b>query</b> to count postings on job boards.</div>
+        <input id="baroGeo" value="${(baro.geo || []).join(", ")}" style="width:100%;margin-top:6px" placeholder="Remote, US, UK">
+        <textarea id="baroRoles" rows="3" style="width:100%;margin-top:6px" placeholder="Senior Engineer = senior software engineer">${broles.map((r) => `${r.label} = ${r.query || r.label}`).join("\n")}</textarea>
+        <button class="primary mt" id="baroSave" style="font-size:.85em">Save config</button>`;
+      document.getElementById("baroSave").addEventListener("click", async () => {
+        const geo = document.getElementById("baroGeo").value.split(",").map((s) => s.trim()).filter(Boolean);
+        const roles = document.getElementById("baroRoles").value.split("\n").map((ln) => {
+          const [label, query] = ln.split("=").map((s) => s.trim());
+          if (!label) return null;
+          return { key: label.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "role",
+                   label, query: query || label };
+        }).filter(Boolean);
+        await api.put("/api/settings", { barometer_config: JSON.stringify({ geo, roles }) });
+        route();
+      });
+    } else { cfgBox.style.display = "none"; }
+  });
+
   const btbl = document.getElementById("baroTable");
+  const readCls = (r) => /shrink/.test(r || "") ? "neg" : /grow/.test(r || "") ? "pos" : "muted";
   if (bpts.length) {
-    btbl.innerHTML = `<table><thead><tr><th>Month</th><th style="text-align:right">${data.roles.a}</th>
-      <th style="text-align:right">${data.roles.b}</th><th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
-      [...bpts].reverse().map((p) => `<tr><td>${p.month}</td>
-        <td style="text-align:right">${p.em_openings != null ? fmt.grouped(p.em_openings) : "—"}</td>
-        <td style="text-align:right">${p.head_openings != null ? fmt.grouped(p.head_openings) : "—"}</td>
-        <td style="text-align:right">${p.my_inbound}</td>
-        <td class="muted" style="font-size:.82em">${/szacun/i.test(p.note || "") ? "⚠️ estimate" : (p.note ? p.note : "LinkedIn")}</td>
+    const roleCols = broles.map((r) => {
+      const s = bser[r.key] || {};
+      const trend = s.reading ? ` <span class="${readCls(s.reading)}" style="font-size:.8em">${s.reading}${s.q_pct != null ? " " + (s.q_pct > 0 ? "+" : "") + s.q_pct + "%/3m" : ""}</span>` : "";
+      return `<th style="text-align:right" title="query: ${r.query || r.label}">${r.label}${trend}</th>`;
+    }).join("");
+    btbl.innerHTML = `<table><thead><tr><th>Month</th>${roleCols}<th style="text-align:right">Your inbound</th><th>Source</th><th></th></tr></thead><tbody>` +
+      [...bpts].reverse().map((p) => `<tr><td>${p.month}</td>` +
+        broles.map((r) => `<td style="text-align:right">${p.counts[r.key] != null ? fmt.grouped(p.counts[r.key]) : "—"}</td>`).join("") +
+        `<td style="text-align:right">${p.my_inbound}</td>
+        <td class="muted" style="font-size:.82em" title="${p.geo ? "geo: " + p.geo + " · " : ""}${p.as_of ? "as of " + p.as_of : ""}">${/estimat|szacun/i.test(p.sources || p.note || "") ? "⚠️ estimate" : (p.sources || "—")}</td>
         <td><button class="danger" data-bdel="${p.id}">✕</button></td></tr>`).join("") + "</tbody></table>";
     btbl.querySelectorAll("[data-bdel]").forEach((b) =>
       b.addEventListener("click", async () => { await api.del("/api/market-barometer/" + b.dataset.bdel); route(); }));
+    const palette = [CHART_COLORS[0], CHART_COLORS[1], CHART_COLORS[4], CHART_COLORS[3]];
     trackChart(new Chart(document.getElementById("baroChart"), {
       data: {
         labels: bpts.map((p) => p.month),
         datasets: [
-          { type: "bar", label: "Your inbound (offers to you)", data: bpts.map((p) => p.my_inbound),
-            backgroundColor: "rgba(255,209,102,0.55)", yAxisID: "y1", order: 3, barPercentage: 0.5, categoryPercentage: 0.6 },
-          { type: "line", label: "Market: " + data.roles.a, data: bpts.map((p) => p.em_openings),
-            borderColor: CHART_COLORS[0], backgroundColor: "transparent", yAxisID: "y", tension: 0.25, borderWidth: 3, pointRadius: 3, order: 1 },
-          { type: "line", label: "Market: " + data.roles.b, data: bpts.map((p) => p.head_openings),
-            borderColor: CHART_COLORS[1], backgroundColor: "transparent", yAxisID: "y", tension: 0.25, borderWidth: 3, pointRadius: 3, order: 2 },
+          { type: "bar", label: "Your inbound", data: bpts.map((p) => p.my_inbound),
+            backgroundColor: "rgba(255,209,102,0.55)", yAxisID: "y1", order: 9, barPercentage: 0.5, categoryPercentage: 0.6 },
+          ...broles.map((r, i) => ({
+            type: "line", label: r.label + " (index)", data: (bser[r.key] || {}).index || [],
+            _raw: (bser[r.key] || {}).counts || [],
+            borderColor: palette[i % palette.length], backgroundColor: "transparent",
+            yAxisID: "y", tension: 0.25, borderWidth: 3, pointRadius: 3, order: i, spanGaps: true })),
         ],
       },
       options: {
         interaction: { mode: "index", intersect: false },
+        plugins: { tooltip: { callbacks: { label: (ctx) => {
+          if (ctx.dataset.yAxisID === "y1") return `Your inbound: ${ctx.parsed.y}`;
+          const raw = (ctx.dataset._raw || [])[ctx.dataIndex];
+          return `${ctx.dataset.label}: ${ctx.parsed.y}` + (raw != null ? ` (${raw} openings)` : "");
+        } } } },
         scales: {
-          y: { position: "left", beginAtZero: true, title: { display: true, text: "openings on the market" } },
+          y: { position: "left", beginAtZero: false, title: { display: true, text: "demand index (base 100)" } },
           y1: { position: "right", beginAtZero: true, suggestedMax: 6, grid: { drawOnChartArea: false },
             ticks: { stepSize: 1 }, title: { display: true, text: "Your inbound" } },
         },
       },
     }));
   } else {
-    btbl.innerHTML = '<div class="empty">No data yet — ask your AI assistant to research this month openings for your two role groups and insert the first row (see the note above).</div>';
+    btbl.innerHTML = '<div class="empty">No data yet — point an n8n collector (JSearch/Apify) at <code>POST /api/market-barometer</code>, or add a row by hand. Set roles/geography with ⚙️.</div>';
   }
 
   document.getElementById("oAdd").addEventListener("click", async () => {

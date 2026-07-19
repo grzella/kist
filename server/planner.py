@@ -79,6 +79,13 @@ def ensure_tables():
         id text primary key, month text not null, em_openings integer,
         head_openings integer, region text default 'Europa (remote)',
         note text default '', created_at text not null)""")
+    # generalized barometer: per-role counts (JSON) + explicit methodology
+    for col, ddl in (("counts", "text"), ("sources", "text"),
+                     ("geo", "text"), ("as_of", "text")):
+        try:
+            eb._exec(f"alter table market_barometer add column {col} {ddl}")
+        except Exception:
+            pass  # column already exists
     eb._exec("""create table if not exists fire_snapshots (
         month text primary key, liquid real not null, net_worth real,
         created_at text not null)""")
@@ -1670,27 +1677,111 @@ def delete_reminder(rid):
 
 # ---------- market barometer (demand for the roles you track — configurable) ----------
 
+def barometer_config():
+    """Configurable roles + geography for the barometer. Defaults roles from the
+    career_role_a/b settings (the two roles you already track); geography is
+    user-set (empty until configured). The n8n collector uses each role's
+    `query` (title-match string) to count postings on job boards."""
+    import json as _json
+    raw = get_setting("barometer_config")
+    if raw:
+        try:
+            cfg = _json.loads(raw)
+            if cfg.get("roles"):
+                cfg.setdefault("geo", [])
+                return cfg
+        except ValueError:
+            pass
+    a = get_setting("career_role_a") or "Senior / Staff Engineer"
+    b = get_setting("career_role_b") or "Engineering Manager / Head"
+    return {"geo": [], "roles": [
+        {"key": "a", "label": a, "query": a},
+        {"key": "b", "label": b, "query": b}]}
+
+
+def _baro_counts(row, role_keys):
+    """Per-role counts for a row — from the `counts` JSON, or, when absent,
+    back-compat from legacy em_openings/head_openings (first two roles)."""
+    import json as _json
+    if row.get("counts"):
+        try:
+            c = _json.loads(row["counts"])
+            return {k: _num(c.get(k)) for k in role_keys}
+        except ValueError:
+            pass
+    legacy = [row.get("em_openings"), row.get("head_openings")]
+    return {k: (_num(legacy[i]) if i < 2 else None) for i, k in enumerate(role_keys)}
+
+
+def _pct(cur, prev):
+    if cur is None or prev in (None, 0):
+        return None
+    return round((cur / prev - 1) * 100, 1)
+
+
 def list_barometer():
+    """Barometer points + a computed INDEX (base 100 at the first month with data),
+    month-over-month and 3-month % change, and a direction reading — because this
+    tab is about the TREND in demand against your inbound, not a falsely precise
+    absolute count."""
+    cfg = barometer_config()
+    role_keys = [r["key"] for r in cfg["roles"]]
     rows = eb._rows("select * from market_barometer order by month asc")
-    # inbound correlation: how many offers arrived in a given month
     offers = eb._rows("select received_at from job_offers")
     inbound = {}
     for o in offers:
         m = (o.get("received_at") or "")[:7]
         if m:
             inbound[m] = inbound.get(m, 0) + 1
+
+    points = []
     for r in rows:
-        r["my_inbound"] = inbound.get(r["month"], 0)
-    return {"points": rows}
+        counts = _baro_counts(r, role_keys)
+        points.append({
+            "id": r["id"], "month": r["month"], "counts": counts,
+            "my_inbound": inbound.get(r["month"], 0),
+            "sources": r.get("sources") or r.get("note") or "",
+            "geo": r.get("geo") or r.get("region") or "",
+            "as_of": r.get("as_of") or "", "note": r.get("note") or "",
+        })
+
+    series = {}
+    for k in role_keys:
+        raw = [p["counts"].get(k) for p in points]
+        base = next((v for v in raw if v not in (None, 0)), None)
+        index = [round(100 * v / base, 1) if (v is not None and base) else None for v in raw]
+        last = raw[-1] if raw else None
+        mom = _pct(last, raw[-2]) if len(raw) >= 2 else None
+        q = _pct(last, raw[-4]) if len(raw) >= 4 else None
+        drv = q if q is not None else mom
+        reading = None if drv is None else ("shrinking" if drv < -10 else "growing" if drv > 10 else "steady")
+        series[k] = {"counts": raw, "index": index, "mom_pct": mom, "q_pct": q,
+                     "reading": reading, "last": last}
+
+    return {"points": points, "roles": cfg["roles"], "geo": cfg["geo"], "series": series}
 
 
 def add_barometer_point(data):
+    """Add a point. New shape (n8n collector): month + counts{role:count} + sources
+    + geo + as_of. Old shape (em_openings/head_openings) still works."""
+    import json as _json
     bid = str(uuid.uuid4())
+    counts = data.get("counts")
+    counts_json = _json.dumps(counts) if isinstance(counts, dict) else None
+    em = _num(data.get("em_openings"))
+    head = _num(data.get("head_openings"))
+    if counts and em is None and head is None:
+        vals = list(counts.values())
+        em = _num(vals[0]) if len(vals) > 0 else None
+        head = _num(vals[1]) if len(vals) > 1 else None
     eb._exec(
         "insert into market_barometer (id, month, em_openings, head_openings, "
-        "region, note, created_at) values (?,?,?,?,?,?,?)",
-        (bid, data["month"], _num(data.get("em_openings")), _num(data.get("head_openings")),
-         data.get("region", "Europe (remote)"), data.get("note", ""), _now()))
+        "region, note, counts, sources, geo, as_of, created_at) "
+        "values (?,?,?,?,?,?,?,?,?,?,?)",
+        (bid, data["month"], em, head,
+         data.get("region", "Europe (remote)"), data.get("note", ""),
+         counts_json, data.get("sources", ""), data.get("geo", ""),
+         data.get("as_of", ""), _now()))
     _audit("barometer", bid, "add", data)
     return bid
 
