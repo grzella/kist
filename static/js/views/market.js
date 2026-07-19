@@ -114,6 +114,27 @@ async function renderMarket(el) {
   }
 
 
+  const TICKER_NAMES_EXTRA = {
+    "^VIX": "VIX — S&P 500 volatility index (the market's 'fear gauge')",
+    "^GSPC": "S&P 500 index (500 largest US companies)",
+    "^IXIC": "NASDAQ Composite index (US tech-heavy)",
+    "GC=F": "Gold — futures price per troy ounce (USD)",
+    "SI=F": "Silver — futures price per troy ounce (USD)",
+    "CL=F": "WTI crude oil — futures price per barrel (USD)",
+    "EURUSD=X": "EUR/USD — euro priced in US dollars",
+    "EURPLN=X": "EUR/PLN — euro priced in Polish zloty",
+    "USDPLN=X": "USD/PLN — US dollar priced in Polish zloty",
+    "VWCE.DE": "Vanguard FTSE All-World ETF (Xetra) — the whole world market",
+    "BTC-USD": "Bitcoin in US dollars",
+  };
+  const tickerDesc = (t) => TICKER_NAMES[t] || TICKER_NAMES_EXTRA[t] || (
+    t.endsWith("=F") ? "commodity futures contract" :
+    t.endsWith("=X") ? "currency pair (FX)" :
+    t.startsWith("^") ? "market index" :
+    /\.DE$/.test(t) ? "ETF/share listed on Xetra (Frankfurt)" :
+    /\.L$/.test(t) ? "ETF/share listed in London" :
+    /\.AS$/.test(t) ? "ETF/share listed in Amsterdam" : "");
+  const tickerShort = (t) => { const d = tickerDesc(t); return d ? d.split(" — ")[0].slice(0, 34) : ""; };
   const TICKER_NAMES = {
     "AAPL": "RSU stock (set the ticker in RSU)",
     "GOOGL": "Alphabet Inc. (Google) — shares from brokerage",
@@ -152,7 +173,7 @@ async function renderMarket(el) {
       ? `<tr><td>${a.ticker}</td><td colspan="7" class="muted">no data — refresh from cloud</td>
          <td><button class="danger" data-rm="${a.ticker}">✕</button></td></tr>`
       : `<tr data-t="${a.ticker}" style="cursor:pointer">
-        <td><b><span class="hint" title="${TICKER_NAMES[a.ticker] || a.ticker}">${a.ticker}</span></b></td>
+        <td><b><span class="hint" title="${tickerDesc(a.ticker) || a.ticker}">${a.ticker}</span></b>${tickerShort(a.ticker) ? `<div class="muted" style="font-size:.72em;line-height:1.2">${tickerShort(a.ticker)}</div>` : ""}</td>
         <td>${fmt.num(a.last_close)} ${a.currency}</td>
         <td class="${a.change_1d_pct >= 0 ? "pos" : "neg"}">${fmt.pct(a.change_1d_pct)}</td>
         <td class="${a.change_30d_pct >= 0 ? "pos" : "neg"}">${fmt.pct(a.change_30d_pct)}</td>
