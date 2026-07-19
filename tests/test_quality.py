@@ -150,3 +150,49 @@ def test_security_review_clean_repo_stays_clean(tmp_path):
                              text=True).stdout.splitlines()
     assert not [x for x in sr._check_repo_leaks(str(repo), tracked) if x["status"] == "fail"]
     assert not [x for x in sr._check_personal_data(str(repo)) if x["status"] == "fail"]
+
+
+# ---------- 4. AI SQL tool guard: fuzz + pentest-check efficacy ----------
+
+@settings(max_examples=200, deadline=None)
+@given(st.text(min_size=0, max_size=60))
+def test_db_tools_never_executes_non_select_fuzz(payload):
+    """Property: whatever text the model emits, run_select never executes a
+    statement that isn't a single SELECT/WITH — it either returns ok=False or a
+    SELECT result, but NEVER performs a write. We assert on the guard's verdict:
+    anything containing a write/DDL keyword must be refused."""
+    import db_tools
+    r = db_tools.run_select(payload)
+    low = payload.lower()
+    banned = ("insert", "update", "delete", "drop", "alter", "create",
+              "attach", "detach", "pragma", "vacuum", "reindex", "replace")
+    if any(b in low for b in banned) or ";" in payload:
+        assert r.get("ok") is not True, f"guard let through: {payload!r}"
+
+
+def test_db_tools_readonly_connection_blocks_writes():
+    import db_tools
+    con = db_tools._connect()
+    try:
+        raised = False
+        try:
+            con.execute("create table _t(x)")
+        except Exception:
+            raised = True
+        assert raised, "write succeeded on a supposedly read-only connection"
+    finally:
+        con.close()
+
+
+def test_security_review_ai_tools_check_catches_weak_guard(monkeypatch):
+    """Efficacy: if the SQL guard were weakened to allow a DELETE, the new
+    pentest check must FAIL (not silently pass)."""
+    import security_review as sr
+    import db_tools
+    good = sr._check_ai_tools()
+    assert any(x["status"] == "pass" and "rejects" in x["title"] for x in good)
+    # weaken the guard: accept everything
+    monkeypatch.setattr(db_tools, "run_select",
+                        lambda sql="": {"ok": True, "rows": []})
+    bad = sr._check_ai_tools()
+    assert any(x["status"] == "fail" for x in bad), "weakened guard not caught"

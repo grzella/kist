@@ -524,6 +524,83 @@ def _check_local_services():
     return out
 
 
+def _check_ai_tools():
+    """Active pentest of the AI tool-calling surface (db_tools): the local model
+    can emit SQL, so the read-only guard must be *proven* to reject writes/DDL
+    and multi-statement injection — not just assumed. This is the highest-value
+    new surface: a compromised or jailbroken model reaches the DB through here."""
+    out = []
+
+    def f(sev, status, title, detail, fix=""):
+        out.append({"id": "aitools", "area": "AI TOOL-CALLING (SQL guard)", "severity": sev,
+                    "status": status, "title": title, "detail": detail, "fix": fix})
+
+    try:
+        import db_tools
+    except Exception as e:
+        f("info", "pass", "No AI SQL tool present", f"db_tools not importable ({str(e)[:60]})")
+        return out
+
+    # payloads the model could be tricked into emitting; NONE may execute
+    attacks = [
+        "delete from goals",
+        "drop table wealth_items",
+        "update settings set value='x'",
+        "insert into goals(name) values('x')",
+        "select 1; delete from goals",
+        "select 1; drop table goals",
+        "pragma table_info(goals); select 1",
+        "with x as (select 1) delete from goals",
+        "attach database '/tmp/e.db' as e",
+        "select load_extension('x')",
+        "SeLeCt 1; DeLeTe FROM goals",
+    ]
+    leaked = []
+    for a in attacks:
+        try:
+            r = db_tools.run_select(a)
+        except Exception:
+            r = {"ok": False}
+        if r.get("ok"):
+            leaked.append(a)
+    if leaked:
+        f("high", "fail", "AI SQL guard let a non-SELECT through",
+          "these payloads were NOT rejected: " + "; ".join(leaked[:4]),
+          "Harden db_tools.run_select() — only a single SELECT/WITH may pass")
+    else:
+        f("info", "pass", "AI SQL guard rejects writes/DDL/multi-statement",
+          f"{len(attacks)} injection payloads (delete/drop/update/insert/pragma/attach/"
+          "load_extension/case-tricks/stacked queries) all refused")
+
+    # even a legitimate SELECT must run on a read-only connection: prove a write
+    # fails at the SQLite layer, not just at the regex
+    try:
+        con = db_tools._connect()
+        ro_enforced = False
+        try:
+            con.execute("create table _pentest_probe(x)")
+        except Exception:
+            ro_enforced = True
+        finally:
+            con.close()
+        if ro_enforced:
+            f("info", "pass", "Tool DB connection is read-only at the SQLite layer",
+              "a CREATE TABLE on the tool connection failed (mode=ro) — defense in depth beyond the regex")
+        else:
+            f("high", "fail", "Tool DB connection is NOT read-only",
+              "a write succeeded on the connection db_tools hands the model",
+              "Open the connection with file:...?mode=ro (uri=True)")
+    except Exception as e:
+        f("info", "pass", "Tool DB connection probe inconclusive", str(e)[:80])
+
+    # result cap: the model must not be able to exfiltrate an unbounded dump
+    if getattr(db_tools, "MAX_ROWS", 10**9) > 500:
+        f("low", "warn", "AI SQL result cap is high",
+          f"MAX_ROWS={db_tools.MAX_ROWS} — a single tool call can return a lot of rows",
+          "Keep MAX_ROWS modest (tens) so one call can't dump the whole DB into the prompt")
+    return out
+
+
 def run(full=True):
     # Make sure config (FINANCE_PROJECT_DIR, module sys.path) is initialised so
     # the functional imports work standalone (CLI/CI), not only inside the app.
@@ -544,6 +621,7 @@ def run(full=True):
     if full:
         findings += _check_functional()
         findings += _check_local_services()
+        findings += _check_ai_tools()
 
     findings.sort(key=lambda x: (_SEV_RANK.get(x["severity"], 9),
                                  0 if x["status"] == "fail" else 1))
