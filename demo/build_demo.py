@@ -317,6 +317,24 @@ planner.set_settings({"rsu_vest_analysis": json.dumps({
                  "the same week so the cash doesn't linger."}],
     "sources": []})})
 
+# --- distilled experiences (sample lessons, so the feature shows populated) ---
+best_effort("experience table", __import__("experience").ensure_tables)
+for q, lesson in [
+    ("Overpay the mortgage or invest?",
+     "When comparing loan overpayment vs investing, compare the loan rate to the "
+     "expected market return AFTER capital-gains tax — not gross. Overpaying a "
+     "6–7% loan usually beats a taxed ~5% net market return."),
+    ("Should I sell RSU at vest?",
+     "Sell enough at vest to bring any single employer stock back under ~10% of the "
+     "liquid portfolio; the vest is already the taxable event, so selling then is "
+     "roughly tax-neutral and cuts concentration risk."),
+    ("Is the currency signal telling me to convert now?",
+     "Never convert on a single day's move — wait for the FX engine's threshold to "
+     "trigger, and prefer natural hedges (spend income in the currency you earn) "
+     "before an explicit conversion."),
+]:
+    best_effort("experience", __import__("experience").save, q, lesson)
+
 # --- market brief (handcrafted — no LLM in the build) ---
 brief = {
     "headline": "Markets are drifting sideways while rate-cut expectations firm up; "
