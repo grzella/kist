@@ -8,6 +8,9 @@ A *kist* is an old word for the chest where you keep what's valuable — at home
 
 ## What problems does it solve?
 
+Honestly? Mine. I had money spread across too many places, a spreadsheet I dreaded opening, forecasts I didn't trust, and a growing discomfort with feeding my financial life into other people's clouds. So I built the tool I wanted to exist — nothing revolutionary, just a small local app that answers my own questions well. If it happens to answer yours too, that's the whole point of putting it here.
+
+
 - **"My money is scattered across 10 apps and a spreadsheet"** — one dashboard: net worth, cash-flow, debts, goals, investments, taxes.
 - **"When will I actually reach my goal?"** — month-by-month projections: goal ETA at your savings pace, FIRE/work-optional crossover, overpay-vs-invest scenarios with saved-interest math.
 - **"Should I sell my vested stock? Overpay the mortgage? Convert currency now?"** — opinionated, data-grounded guidance: an FX signal engine with a historical backtest, RSU Monte-Carlo on real volatility, debt-overpayment simulations.
