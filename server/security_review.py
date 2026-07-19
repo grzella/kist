@@ -646,6 +646,23 @@ def _check_web_guard():
         f("high", "fail", "Same-origin write wrongly blocked",
           "the guard rejects legitimate loopback writes — it's too strict",
           "Allow loopback Origin/Referer through the guard")
+
+    # mass-assignment: the public settings writer must drop security-sensitive keys
+    try:
+        import planner
+        base = planner.get_setting("commit_repos")
+        r = c.put("/api/settings", headers={"Origin": f"http://127.0.0.1:{port}"},
+                  json={"commit_repos": "/tmp/pentest-probe"})
+        after = planner.get_setting("commit_repos")
+        if r.status_code == 200 and after == base:
+            f("info", "pass", "Protected settings keys are rejected",
+              "PUT /api/settings can't set commit_repos/ai_mode/backup_dir/... — no mass assignment")
+        else:
+            f("high", "fail", "Protected setting was writable via /api/settings",
+              f"commit_repos changed to {after!r} through the generic settings writer",
+              "Route the endpoint through set_settings_public() (denylist)")
+    except Exception as e:
+        f("info", "pass", "Settings mass-assignment probe inconclusive", str(e)[:80])
     return out
 
 

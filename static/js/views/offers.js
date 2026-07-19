@@ -81,19 +81,19 @@ async function renderOffers(el) {
         </tr>`).join("");
       return `<div class="card mt">
         <div class="row" style="justify-content:space-between">
-          <h3 style="margin:0">${o.company}${o.role ? " — " + o.role : ""}</h3>
+          <h3 style="margin:0">${esc(o.company)}${o.role ? " — " + esc(o.role) : ""}</h3>
           <span class="badge">${OFFER_STATUS[o.status] || o.status}</span>
         </div>
         <div class="row mt">
           <b>${noComp ? "—" : fmt.pln(o.total_monthly) + "/mo"}</b>
           <span class="${delta > 0 ? "pos" : delta < 0 ? "neg" : "muted"}">${deltaTxt}</span>
-          <span class="muted">${o.work_model || ""} · ${o.received_at || ""}</span>
+          <span class="muted">${esc(o.work_model || "")} · ${esc(o.received_at || "")}</span>
         </div>
         ${impact ? `<table class="mt"><thead><tr>
             <th>Goal</th><th>Now</th><th>With this offer</th><th>Difference</th>
           </tr></thead><tbody>${impact}</tbody></table>
           <div class="muted">Assumption: the entire pay surplus goes toward the goal.</div>` : ""}
-        ${o.notes ? `<div class="muted mt">${o.notes}</div>` : ""}
+        ${o.notes ? `<div class="muted mt">${esc(o.notes)}</div>` : ""}
         <div class="row mt">
           <select data-ost="${o.id}">
             ${["new", "interviewing", "offer", "rejected", "accepted"].map((s) =>

@@ -882,7 +882,8 @@ def settings_get():
 
 @app.put("/api/settings")
 def settings_put():
-    return jsonify(planner.set_settings(request.get_json(force=True)))
+    # public writer: drops security-sensitive keys (they have dedicated endpoints)
+    return jsonify(planner.set_settings_public(request.get_json(force=True)))
 
 
 # ---------- RSU ----------

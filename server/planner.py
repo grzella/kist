@@ -122,6 +122,33 @@ def set_settings(data):
     return settings()
 
 
+# Keys that the generic PUT /api/settings endpoint must NOT be allowed to write:
+# each has its own dedicated endpoint or is internal state. Blocking them here
+# stops "mass assignment" — e.g. pointing the commit tracker at an arbitrary path
+# (git-log info disclosure) or flipping the AI to cloud mode — via the one open
+# key/value writer. Internal callers use set_settings() directly and are unaffected.
+_PROTECTED_SETTINGS = {
+    "commit_repos", "commit_author",      # → git log on arbitrary local paths
+    "backup_dir", "backup_auto",          # → filesystem/backup (has /api/backup/config)
+    "app_config",                         # → modules/wizard (has /api/app-config)
+    "ai_mode",                            # → local vs cloud (has /api/llm/config)
+    "rag_dirty", "gh_activity_cache", "last_security_review",  # internal state
+}
+
+
+def set_settings_public(data):
+    """set_settings for the browser-facing PUT /api/settings endpoint: silently
+    drops protected keys so a same-origin/CSRF write can't set security-sensitive
+    settings through the generic writer. Returns the rejected keys for visibility."""
+    rejected = [k for k in data if k in _PROTECTED_SETTINGS]
+    allowed = {k: v for k, v in data.items() if k not in _PROTECTED_SETTINGS}
+    if allowed:
+        set_settings(allowed)
+    if rejected:
+        _audit("settings", None, "reject", {"blocked": rejected})
+    return {**settings(), "rejected": rejected}
+
+
 def settings():
     return {
         "current_total_monthly": _num(get_setting("current_total_monthly")),

@@ -227,3 +227,17 @@ def test_web_guard_blocks_rebinding_and_csrf(client):
     assert ok.status_code != 403
     # and a normal request (test client Host=localhost, no Origin) is fine
     assert client.get("/api/health").status_code == 200
+
+
+def test_settings_endpoint_blocks_protected_keys(client):
+    """Mass-assignment guard: the public PUT /api/settings must silently drop
+    security-sensitive keys (they have dedicated endpoints), so a same-origin write
+    can't repoint the commit tracker or flip the AI to cloud via the generic writer."""
+    import planner
+    before = planner.get_setting("commit_repos")
+    r = client.put("/api/settings", headers={"Origin": "http://127.0.0.1:8321"}, json={
+        "commit_repos": "/etc", "ai_mode": "both", "monthly_savings": 4321}).get_json()
+    assert "commit_repos" in r["rejected"] and "ai_mode" in r["rejected"]
+    assert planner.get_setting("commit_repos") == before          # protected: unchanged
+    assert planner.get_setting("ai_mode") != "both" or planner.get_setting("ai_mode") is None
+    assert planner.get_setting("monthly_savings") == "4321"        # normal key: written
