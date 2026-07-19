@@ -154,7 +154,7 @@ async function renderRsu(el) {
       </div>
     </div>
     <div class="card mt">
-      <h3>Parameters</h3>
+      <details><summary style="cursor:pointer"><b>⚙️ Grant parameters</b> <span class="muted" style="font-size:.85em">(rarely change — expand after a vest, or ask the AI to update them)</span></summary>
       <div class="row">
         <input type="number" id="rHeld" value="${r.shares_held}" title="shares held" style="width:110px">
         <input type="number" id="rNext" value="${r.shares_next_vest}" title="shares in the next vest" style="width:110px">
@@ -164,6 +164,7 @@ async function renderRsu(el) {
       </div>
       <div class="muted mt">held · next vest · grant value USD · pricing window.
         After each vest update "held" (and the RSU shares item in Wealth).</div>
+      </details>
     </div>`;
 
   if (adv && !adv.error && document.getElementById("rsuCone")) {

@@ -57,7 +57,7 @@ async function renderControl(el) {
 
     <div class="grid cols-4">
       <div class="card kpi"><div class="label">Tasks OK</div><div class="value pos">${s.ok}</div><div class="sub">of ${s.total}</div></div>
-      <div class="card kpi"><div class="label">Warnings</div><div class="value ${s.warn ? "" : "muted"}">${s.warn}</div><div class="sub">stale / offline</div></div>
+      <div class="card kpi"><div class="label">Warnings</div><div class="value ${s.warn ? "" : "muted"}"${" style=\"color:#ffd166\"".repeat(s.warn ? 1 : 0)}>${s.warn}</div><div class="sub">stale / offline</div></div>
       <div class="card kpi"><div class="label">Errors</div><div class="value ${s.error ? "neg" : "muted"}">${s.error}</div><div class="sub">need action</div></div>
       <div class="card kpi"><div class="label">Refresh</div>
         <div class="value"><button class="primary" id="hRefresh" style="font-size:.5em;padding:8px 14px">Check now</button></div></div>
