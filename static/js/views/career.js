@@ -3,7 +3,7 @@ async function renderCareer(el) {
   if (!a.headline) {
     el.innerHTML = `<div class="card"><h2>Career</h2>
     <details style="margin:6px 0 12px;padding:8px 12px;background:#4c8dff14;border-radius:8px">
-      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting</summary>
+      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting <span class="muted" style="font-weight:normal">· click for details</span></summary>
       <div class="muted" style="font-size:.87em;margin-top:6px">This tab watches the <b>job market as a signal</b>, the same way the Market tab watches stock prices:
         what is the sentiment around your role, how many offers reach you <i>without applying anywhere</i>, and how demand shifts over time —
         especially as AI reshapes engineering roles. Tracking inbound offers measures your market value and the health of your niche;
@@ -36,7 +36,7 @@ async function renderCareer(el) {
     <div class="muted" style="margin-bottom:4px"><a href="#offers" style="text-decoration:none">← Career (offers and market)</a></div>
     <h2>🧭 Career — long-term growth analysis</h2>
     <details style="margin:6px 0 12px;padding:8px 12px;background:#4c8dff14;border-radius:8px">
-      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting</summary>
+      <summary style="cursor:pointer;font-size:.9em"><b>👀 What this tab is (and is not)</b> — market monitoring, not job hunting <span class="muted" style="font-weight:normal">· click for details</span></summary>
       <div class="muted" style="font-size:.87em;margin-top:6px">This tab watches the <b>job market as a signal</b>, the same way the Market tab watches stock prices:
         what is the sentiment around your role, how many offers reach you <i>without applying anywhere</i>, and how demand shifts over time —
         especially as AI reshapes engineering roles. Tracking inbound offers measures your market value and the health of your niche;
