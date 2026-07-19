@@ -93,3 +93,36 @@ composite is hot (score ≥ 4/8). Runs entirely in n8n, so it works even when th
 is off. Set a Telegram Bot credential and the `TELEGRAM_CHAT_ID` env var in n8n.
 The app can also send this alert itself when it's running — see README › Risk-radar
 Telegram alert.
+
+## Market barometer collectors (JSearch + Apify)
+
+Two ready-made monthly workflows that feed the **Market barometer** (Career tab) with
+how many postings exist for **your roles** on popular job boards — so the tab tracks
+real market demand against your inbound, instead of a hand-typed guess.
+
+- [`barometer-jsearch-collector.json`](./barometer-jsearch-collector.json) — counts via
+  **JSearch (Google for Jobs)**, which aggregates LinkedIn / Indeed / Glassdoor / … in
+  one query. Cheaper, stabler, broad coverage. Needs `RAPIDAPI_JSEARCH_KEY`.
+- [`barometer-apify-collector.json`](./barometer-apify-collector.json) — counts via an
+  **Apify** job-board scraper actor (LinkedIn/Indeed 1:1; the actor handles anti-bot,
+  not you). Closer to "scrape LinkedIn", pricier/slower. Needs `APIFY_TOKEN` + `APIFY_ACTOR`.
+
+Both read the app's **configurable roles + geography** (set them in the Career tab → ⚙️,
+stored as `barometer_config`), loop each role, count postings, and `POST` one point to
+`/api/market-barometer`. Set `KIST_URL` in n8n if the app isn't at `http://127.0.0.1:8321`
+(n8n must be able to reach it — run n8n locally, or expose the app on your LAN).
+
+**It's a relative index, not a true total — on purpose.** None of these sources give a
+clean "total openings" number, so each collector uses a **fixed method** (same query,
+same page depth / max items) every month. The app turns that proxy into an **index
+(base 100)** with a 3-month trend and a direction reading — comparable month-to-month
+even though the raw count is a proxy. The raw number + source are shown in the tooltip so
+it's never mistaken for a precise total. **Keep the method fixed** (don't change `PAGES` /
+`MAX` between months) or the trend breaks.
+
+**Want to compare the two?** Run both for a couple of months and see which gives steadier,
+more sensible numbers for your roles/geography — then keep one. The app is source-agnostic;
+it just needs points at `/api/market-barometer` with `{month, counts, sources, geo, as_of}`.
+
+The app's `/api/market-barometer` guard blocks cross-origin writes but allows same-origin /
+tool requests without an `Origin` header — n8n's HTTP node sends none, so it passes.
