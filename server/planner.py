@@ -408,8 +408,8 @@ def list_offers():
                     "new_months": round(new_months, 1) if new_months else None,
                     "months_saved": round(base_months - new_months, 1) if new_months else None,
                 })
-    roles = {"a": get_setting("career_role_a") or "Engineering Manager",
-             "b": get_setting("career_role_b") or "Head of Engineering"}
+    roles = {"a": get_setting("career_role_a") or "IC roles (Senior / Staff Engineer)",
+             "b": get_setting("career_role_b") or "Leadership roles (Tech Lead / EM / Head)"}
     return {"offers": offers, "settings": cfg, "stats": _offers_stats(offers, current),
             "roles": roles}
 
