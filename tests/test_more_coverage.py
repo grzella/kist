@@ -219,3 +219,18 @@ def test_rag_search_uses_reranker_when_available(client, monkeypatch):
     monkeypatch.setattr(llm_local, "rerank", lambda q, docs, top_n=5: list(range(len(docs)))[::-1][:top_n])
     hits = rag.search("goal savings", k=3)
     assert isinstance(hits, list)  # reranker order applied without crashing
+
+
+def test_market_brief_generate_and_get(client, monkeypatch):
+    import llm_local
+    import market
+    _seed_prices("TSTB")
+    monkeypatch.setattr(market, "get_watchlist", lambda: [{"ticker": "TSTB"}])
+    monkeypatch.setattr(llm_local, "chat_json", lambda *a, **k: {
+        "headline": "calm week", "highlights": [], "positions": [
+            {"ticker": "TSTB", "stance": "hold", "text": "steady"}]})
+    monkeypatch.setattr(llm_local, "status", lambda: {"online": True, "model": "fake"})
+    r = market.generate_brief("daily")
+    assert r["ok"] and r["brief"]["kind"] == "daily"
+    both = client.get("/api/market/brief").get_json()
+    assert both["daily"]["headline"] == "calm week"

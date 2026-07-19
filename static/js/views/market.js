@@ -42,9 +42,9 @@ function marketBriefHtml(b) {
 }
 
 async function renderMarket(el) {
-  const [wl, brief, radar] = await Promise.all([
+  const [wl, briefs, radar] = await Promise.all([
     api.get("/api/watchlist"),
-    api.get("/api/analysis/market_brief").catch(() => ({})),
+    api.get("/api/market/brief").catch(() => ({})),
     api.get("/api/risk-radar").catch(() => null),
   ]);
   el.innerHTML = `
@@ -70,7 +70,23 @@ async function renderMarket(el) {
       <div class="muted mt" style="font-size:.78em">The reading = the sum of component scores (each 0🟢/1🟡/2🔴, max 8 total). The radar predicts nothing — it contextualizes. Hover rows/columns for explanations.</div>
     </div>` : ""}
 
-    ${marketBriefHtml(brief)}
+    ${(() => {
+      const view = localStorage.getItem("brief_view") || "daily";
+      const b = (briefs || {})[view];
+      const other = view === "daily" ? "weekly" : "daily";
+      return `
+      <div class="row" style="gap:8px;align-items:center;margin-bottom:6px">
+        <button data-briefview="daily" class="${view === "daily" ? "primary" : ""}">Daily</button>
+        <button data-briefview="weekly" class="${view === "weekly" ? "primary" : ""}">Weekly</button>
+        ${view === "daily" ? `<button id="briefRefresh" title="pull fresh quotes and regenerate">🔄 Fetch latest</button>` : ""}
+        <span class="muted" style="font-size:.8em">${b && b.as_of ? `as of ${b.as_of}${b.generated_by ? ` · ${b.generated_by}` : ""}` : `no ${view} brief yet`}
+          · daily regenerates each morning, weekly on Mondays (Data → Schedules)</span>
+      </div>
+      ${b && b.headline ? marketBriefHtml(b) : (view === "weekly" ? marketBriefHtml(b || {}) : `
+        <div class="card"><h3 style="margin-top:0">🧭 Market brief — daily</h3>
+        <div class="muted">No daily brief yet. It is generated each morning by the <b>local AI</b> from your cached quotes —
+        or click <b>🔄 Fetch latest</b> now (needs a running local model and at least one ticker in the watchlist).</div></div>`)}`;
+    })()}
     <h3 class="mt">Watchlist</h3>
     <div class="muted" style="font-size:.82em;margin:2px 0 6px">Quotes come from your local cache. The 🌍 Risk Radar fetches its four tickers by itself (keyless Yahoo); everything else needs your own sync — see README › Connecting your own services.</div>
     <div class="card">
@@ -215,4 +231,14 @@ async function renderMarket(el) {
     await api.put("/api/settings", { [key]: raw });
     route();
   }));
+
+  el.querySelectorAll("[data-briefview]").forEach((b) => b.addEventListener("click", () => {
+    localStorage.setItem("brief_view", b.dataset.briefview); route();
+  }));
+  const br = document.getElementById("briefRefresh");
+  if (br) br.addEventListener("click", async () => {
+    br.disabled = true; br.textContent = "🔄 generating…";
+    const r = await api.post("/api/market/brief/refresh", { kind: "daily" }).catch((e) => ({ ok: false, error: e.message }));
+    if (r && r.ok) { route(); } else { br.disabled = false; br.textContent = "🔄 Fetch latest"; alert(r && r.error || "failed"); }
+  });
 }

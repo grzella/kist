@@ -87,7 +87,7 @@ Then set `LOCAL_LLM_KEY=<secret>` (and optionally `LOCAL_LLM_URL`) in `.env`. Co
 
 **AI mode — local by default, cloud strictly opt-in.** The Control Center **AI mode** switch governs *all* of the above. Default: **local only** — every AI call stays on your machine. Flip to **local + Claude** and the app asks *both* engines, then **synthesizes one verdict** from the two answers (typically the best of both); the cloud model defaults to Anthropic's newest (`claude-fable-5`, configurable via `CLOUD_LLM_MODEL`). The UI warns plainly that this mode **sends the prompt and snippets of your data to Anthropic** — set your own `ANTHROPIC_API_KEY` in `.env` to enable it. All AI answers are framed by a rigorous financial-analyst system prompt (explicit assumptions, scenario ranges, opportunity-cost/tax, a one-line bottom line), and every question/answer is recorded in a **local prompt log** (Control Center) so you can see what was asked and whether the AI helps.
 
-**Local RAG — answers grounded in your own numbers.** Before the AI answers, the app hands it the matching snippets of *your* data — goals, wealth items, offers, business entries, saved analyses, plus computed recommendations and reminders — from a local `rag_chunks` index (pure stdlib, fully offline). So the model reasons about your figures, not generic advice. Hit **Refresh memory** in Control Center after adding data.
+**Local RAG — answers grounded in your own numbers.** Before the AI answers, the app hands it the matching snippets of *your* data — goals, wealth items, offers, business entries, saved analyses, plus computed recommendations and reminders — from a local `rag_chunks` index (pure stdlib, fully offline). So the model reasons about your figures, not generic advice. The index **maintains itself**: any data write marks it stale and it reindexes before the next AI answer (plus a scheduled refresh); the **Refresh memory** button in Control Center remains for forcing it.
 
 Retrieval is **BM25 (lexical) out of the box**, and upgrades to a **BM25 + semantic hybrid** if you point it at a local embedding server — then a question can match by *meaning* even with different words or across languages ("saving for retirement" finds your "pension account"):
 
@@ -106,6 +106,13 @@ llama-server -hf gpustack/bge-reranker-v2-m3-GGUF --embedding --pooling rank --p
 # in .env:
 LOCAL_RERANK_URL=http://127.0.0.1:8082/v1
 ```
+
+**Market brief — daily & weekly, written by the AI.** The Markets tab keeps two briefs: a **daily** one (regenerated every morning) and a **weekly** one (Monday mornings) — toggle between them in the tab. Each is generated from your cached quotes and the risk-radar state by the engine your **AI mode** selects (local only, or cloud-first with local fallback in local+Claude mode), schema-locked so it always renders. The daily view has a **🔄 Fetch latest** button: it pulls fresh quotes and rewrites the brief on the spot (e.g. you open the app at noon and want more than the morning run). You can still paste your own brief (weekly box) — a saved brief is never overwritten by a failed generation. Cadence is editable in Data → Schedules.
+
+**Risk-radar Telegram alert.** When the radar composite goes hot (🔴, ≥4/8), the app can ping you on Telegram — **a signal to investigate, not to act**. Two ways, pick either:
+
+1. *Built-in (app running):* set `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` in `.env` — the daily radar snapshot sends the alert itself (at most once a day, with the drivers and the AI one-liner).
+2. *Standalone (works with the app off):* import `integrations/n8n/risk-radar-telegram-alert.json` into n8n — it recomputes the same composite from Yahoo every morning and alerts on the same threshold.
 
 ## Backups
 

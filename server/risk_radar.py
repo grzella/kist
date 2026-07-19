@@ -147,7 +147,38 @@ def snapshot():
              "values (?,?,?,?,?)",
              (today, reading["score"], reading["state"],
               json.dumps(reading["components"], ensure_ascii=False), comment))
+    _alert_if_hot(reading, comment)
     return True
+
+
+def _alert_if_hot(reading, comment=None):
+    """When the composite goes hot (🔴), ping Telegram — a sign to LOOK, not an
+    order to act. Needs TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in .env; without
+    them this is a silent no-op. Fires at most once per day (with the snapshot).
+    A standalone n8n alternative lives in integrations/n8n/ (works with the app off)."""
+    import os
+    import urllib.parse
+    import urllib.request
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat or "🔴" not in (reading.get("state") or ""):
+        return False
+    hot = ", ".join(f"{p['label']}: {p['level']} ({p['chg_1d']:+}%/d)"
+                    for p in reading["components"]
+                    if p.get("score") == 2 and p.get("level") is not None)
+    text = (f"🔴 Risk radar: {reading['score']}/{reading['max_score']} — markets are hot. "
+            f"Drivers: {hot or 'see the app'}. "
+            + (comment + " " if comment else "")
+            + "Worth a look — this is a signal to investigate, not to act.")
+    try:
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=urllib.parse.urlencode({"chat_id": chat, "text": text}).encode())
+        with urllib.request.urlopen(req, timeout=10):
+            pass
+        return True
+    except Exception:
+        return False
 
 
 

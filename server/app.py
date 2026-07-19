@@ -28,6 +28,25 @@ def index():
     return send_from_directory(str(STATIC), "index.html")
 
 
+_RAG_SKIP = ("/api/llm", "/api/rag", "/api/security-review", "/api/health",
+             "/api/schedules", "/api/backup", "/api/market/refresh")
+
+
+@app.after_request
+def _rag_dirty_hook(resp):
+    # data changed → mark the AI memory stale; it reindexes itself before the
+    # next answer (no more manual "Refresh memory" after adding data)
+    try:
+        if (request.method in ("POST", "PUT", "DELETE", "PATCH")
+                and request.path.startswith("/api/")
+                and not request.path.startswith(_RAG_SKIP)
+                and resp.status_code < 400):
+            planner.set_settings({"rag_dirty": "1"})
+    except Exception:
+        pass
+    return resp
+
+
 @app.after_request
 def _no_cache(resp):
     # local single-user app in active development — always serve fresh JS/CSS/HTML
@@ -180,6 +199,23 @@ def forecast_selfscore():
 @app.post("/api/forecast/cycle")
 def forecast_cycle():
     return jsonify(market.record_and_score_forecasts())
+
+
+@app.get("/api/market/brief")
+def market_brief_get():
+    return jsonify(market.get_briefs())
+
+
+@app.post("/api/market/brief/refresh")
+def market_brief_refresh():
+    """Regenerate a brief now (daily view's "fetch latest" button): pull fresh
+    quotes first, then have the local model rewrite the brief from them."""
+    kind = (request.get_json(force=True) or {}).get("kind", "daily")
+    try:
+        market.refresh_cache()
+    except Exception:
+        pass
+    return jsonify(market.generate_brief(kind))
 
 
 @app.get("/api/fx-analysis")
@@ -491,6 +527,12 @@ def _ai_answer(prompt, system=None, use_rag=True):
     import llm_local, llm_cloud, finance_prompt, rag, llm_log
     system = system or finance_prompt.SYSTEM
     mode = planner.get_setting("ai_mode") or "local"
+    if use_rag and planner.get_setting("rag_dirty") == "1":
+        try:
+            rag.reindex()
+            planner.set_settings({"rag_dirty": ""})
+        except Exception:
+            pass
     ctx = rag.context_for(prompt) if use_rag else ""
     ask = (ctx + "\n\nQuestion: " + prompt) if ctx else prompt
     out = {"mode": mode, "rag_used": bool(ctx)}

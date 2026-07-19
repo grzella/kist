@@ -1,0 +1,45 @@
+{
+  "name": "Kist — risk-radar hot alert (Telegram)",
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"triggerAtHour": 9, "triggerAtMinute": 20}]}},
+      "name": "Every morning 9:20",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Same components and thresholds as the app's Risk Radar (see README).\nconst tickers = ['^VIX', 'GC=F', 'CL=F', 'EURUSD=X'];\nconst out = {};\nfor (const t of tickers) {\n  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(t)}?range=5d&interval=1d`;\n  const resp = await this.helpers.httpRequest({ url, headers: { 'User-Agent': 'Mozilla/5.0' }, json: true });\n  const closes = (resp.chart.result[0].indicators.quote[0].close || []).filter((x) => x != null);\n  const level = closes.at(-1);\n  const prev = closes.at(-2);\n  out[t] = { level, chg: prev ? +((level - prev) / prev * 100).toFixed(2) : null };\n}\nconst s = {};\ns.vix = out['^VIX'].level < 18 ? 0 : out['^VIX'].level <= 25 ? 1 : 2;\nif ((out['^VIX'].chg ?? 0) > 10) s.vix = Math.min(2, s.vix + 1);\ns.gold = (out['GC=F'].chg ?? 0) > 2.5 ? 2 : (out['GC=F'].chg ?? 0) > 1.0 ? 1 : 0;\nconst oilAbs = Math.abs(out['CL=F'].chg ?? 0);\ns.oil = oilAbs > 6 ? 2 : oilAbs > 3 ? 1 : 0;\ns.usd = (out['EURUSD=X'].chg ?? 0) < -1.2 ? 2 : (out['EURUSD=X'].chg ?? 0) < -0.5 ? 1 : 0;\nconst score = s.vix + s.gold + s.oil + s.usd;\nreturn [{ json: { score, max: 8, hot: score >= 4, detail: JSON.stringify({ s, out }) } }];"
+      },
+      "name": "Compute radar composite",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": {"conditions": {"conditions": [{"leftValue": "={{ $json.hot }}", "rightValue": true, "operator": {"type": "boolean", "operation": "true", "singleValue": true}}]}},
+      "name": "Hot? (score ≥ 4/8)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [440, 0]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=🔴 Kist risk radar: {{ $json.score }}/8 — markets are hot. Components: {{ $json.detail }}. A signal to investigate, not to act."
+      },
+      "name": "Telegram alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [660, 0],
+      "credentials": {"telegramApi": {"name": "Telegram Bot"}}
+    }
+  ],
+  "connections": {
+    "Every morning 9:20": {"main": [[{"node": "Compute radar composite", "type": "main", "index": 0}]]},
+    "Compute radar composite": {"main": [[{"node": "Hot? (score ≥ 4/8)", "type": "main", "index": 0}]]},
+    "Hot? (score ≥ 4/8)": {"main": [[{"node": "Telegram alert", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"}
+}

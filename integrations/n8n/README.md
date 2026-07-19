@@ -84,3 +84,12 @@ The same pattern works for any Supabase table with a date column.
   file contains only placeholders. Never commit real keys.
 - This repo has a security scan (`server/security_review.py`) that would catch a
   secret pasted into files — keep keys in n8n, not in the JSON.
+
+## risk-radar-telegram-alert.json
+
+Recomputes the app's Risk Radar composite (VIX, gold, oil, EURUSD — same explicit
+thresholds) straight from Yahoo every morning and sends a Telegram message when the
+composite is hot (score ≥ 4/8). Runs entirely in n8n, so it works even when the app
+is off. Set a Telegram Bot credential and the `TELEGRAM_CHAT_ID` env var in n8n.
+The app can also send this alert itself when it's running — see README › Risk-radar
+Telegram alert.
