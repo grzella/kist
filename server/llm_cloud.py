@@ -2,7 +2,7 @@
 
 Calls the Anthropic Messages API directly (raw HTTP, stdlib — consistent with
 llm_local.py; the app keeps its dependencies minimal). Key from ANTHROPIC_API_KEY
-(.env, git-ignored). Model: CLOUD_LLM_MODEL (defaults to claude-opus-4-8).
+(.env, git-ignored). Model: CLOUD_LLM_MODEL (defaults to claude-fable-5, the newest model).
 
 PRIVACY NOTE: cloud mode SENDS the prompt to Anthropic. The app defaults to
 'local' mode (local model only); the user enables the cloud deliberately in
@@ -13,7 +13,7 @@ import os
 import urllib.request
 
 API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = os.environ.get("CLOUD_LLM_MODEL", "claude-opus-4-8")
+MODEL = os.environ.get("CLOUD_LLM_MODEL", "claude-fable-5")
 
 
 def _key():
