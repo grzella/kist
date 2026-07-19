@@ -121,6 +121,17 @@ def _ai_one_liner(reading):
         return None
 
 
+def _finish_sentence(text):
+    """Trim to the last complete sentence — better shorter than cut mid-word."""
+    if not text:
+        return text
+    t = text.strip()
+    if t[-1] in ".!?":
+        return t
+    cut = max(t.rfind("."), t.rfind("!"), t.rfind("?"))
+    return t[: cut + 1] if cut > 20 else t
+
+
 def snapshot():
     """Daily reading: compute, comment (local AI, best-effort), store.
     Returns True when stored (idempotent per day) — the schedule runner."""
@@ -131,7 +142,7 @@ def snapshot():
     today = date.today().isoformat()
     if eb._rows("select 1 from risk_radar_history where date=?", (today,)):
         return True
-    comment = _ai_one_liner(reading)
+    comment = _finish_sentence(_ai_one_liner(reading))
     eb._exec("insert into risk_radar_history (date, score, state, details, comment) "
              "values (?,?,?,?,?)",
              (today, reading["score"], reading["state"],

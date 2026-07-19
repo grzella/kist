@@ -187,7 +187,7 @@ async function route() {
         st.style.cssText = "font-size:.78em;margin:-6px 0 10px";
         st.textContent = "🕐 updated: " + t.toLocaleDateString("en-GB")
           + " " + String(t.getHours()).padStart(2, "0") + ":" + String(t.getMinutes()).padStart(2, "0")
-          + " (computed live on every open)";
+          + " — the view is computed right now from the local DB; dates on cards (e.g. \"as of…\") describe the age of data or research, not the view";
         h2.after(st);
       }
     } catch (e) { /* stamp is cosmetic */ }

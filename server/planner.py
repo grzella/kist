@@ -738,7 +738,7 @@ def recommendation():
     goals = [g for g in list_goals() if g["status"] == "active"]
 
     t = w["totals"]
-    # The cushion definition: cash (kind=cushion) + brokerage + pension — all
+    # Cushion definition: cash (kind=cushion) + brokerage + pension — all
     # quickly liquidable. A tenant deposit (a liability) is excluded by kind.
     liquid_extra = sum(i["latest_value"] or 0 for i in w["items"]
                        if i["name"].startswith("brokerage") or i["name"] == "pension")
