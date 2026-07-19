@@ -24,7 +24,7 @@ async function renderBusiness(el) {
         <input type="date" id="bDate" value="${new Date().toISOString().slice(0, 10)}">
         <select id="bKind"><option value="cost">cost</option><option value="revenue">revenue</option></select>
         <select id="bCat">${b.categories.map((c) => `<option>${c}</option>`).join("")}</select>
-        <input data-num id="bAmount" placeholder="net amount PLN">
+        <input data-num id="bAmount" placeholder="net amount ${window.APP_CURRENCY || "PLN"}">
         <input id="bDesc" placeholder="description (e.g. Ad spend July, materials…)" style="flex:1">
         <button class="primary" id="bAdd">Add</button>
       </div>

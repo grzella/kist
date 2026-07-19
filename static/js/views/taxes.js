@@ -42,9 +42,10 @@ async function renderTaxes(el) {
       <h3>Assumptions (editable)</h3>
       <div class="row" style="flex-wrap:wrap;gap:12px">
         <div class="muted" style="font-size:.82em;margin-bottom:6px">⚠️ The computation uses simplified <b>Polish</b> rules as defaults — adjust the editable fields below to your country; a full per-country tax engine is on the roadmap.</div>
-        <label class="muted">Rent/mo (PLN)<br><input data-num id="txRent" value="${fmt.grouped(d.assumptions.tax_rental_monthly)}" style="width:130px"></label>
+        <label class="muted">Rent/mo (${window.APP_CURRENCY || "PLN"})<br><input data-num id="txRent" value="${fmt.grouped(d.assumptions.tax_rental_monthly)}" style="width:130px"></label>
+        <label class="muted">Business income tax rate (%)<br><input data-num id="txBiz" value="${d.assumptions.tax_biz_rate_pct ?? 12}" style="width:110px"></label>
         <label class="muted">Lump-sum tax rate (%)<br><input data-num id="txRate" value="${d.assumptions.tax_rental_rate}" style="width:110px"></label>
-        <label class="muted">Business social security/mo (PLN)<br><input data-num id="txZus" value="${fmt.grouped(d.assumptions.tax_zus_monthly)}" style="width:130px"></label>
+        <label class="muted">Business social security/mo (${window.APP_CURRENCY || "PLN"})<br><input data-num id="txZus" value="${fmt.grouped(d.assumptions.tax_zus_monthly)}" style="width:130px"></label>
         <button class="primary" id="txSave" style="align-self:flex-end">Save</button>
       </div>
     </div>`;

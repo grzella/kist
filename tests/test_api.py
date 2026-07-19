@@ -184,3 +184,11 @@ def test_watchlist_without_supabase_is_graceful(client):
     assert r.status_code == 200
     d = r.get_json()
     assert d.get("ok") is False and "Supabase" in (d.get("error") or "")
+
+
+def test_data_wipe_requires_confirm_and_resets(client):
+    assert client.post("/api/data/wipe", json={}).status_code == 400
+    r = client.post("/api/data/wipe", json={"confirm": True}).get_json()
+    assert r["ok"] is True
+    cfg = client.get("/api/app-config").get_json()
+    assert cfg["has_data"] is False and cfg["wizard_completed"] is False

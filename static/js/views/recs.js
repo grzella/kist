@@ -111,7 +111,7 @@ async function renderRecs(el) {
       out.innerHTML = r.text
         ? `<div class="muted" style="font-size:.8em">${r.at} · ${r.by}${r.rag_used ? " · grounded in your data" : ""}</div>
            <div style="white-space:pre-wrap;font-size:.92em">${r.text}</div>`
-        : `<div class="neg">${r.error || "no answer"}</div>`;
+        : `<div class="neg">${(r.error || "no answer").replace("Control → AI mode", '<a href="#control" style="color:inherit;text-decoration:underline">Control → AI mode</a>')}</div>`;
     } catch (err) { out.innerHTML = `<div class="neg">Error: ${err.message}</div>`; }
     finally { btn.disabled = false; }
   });

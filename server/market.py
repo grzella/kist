@@ -674,7 +674,7 @@ _FX_PAIRS = [
 def _fx_one(cfg):
     hist = prices(cfg["pair"], days=400)
     if len(hist) < 60:
-        return {"pair": cfg["pair"], "title": cfg["title"], "error": "not enough data"}
+        return {"pair": cfg["pair"], "title": cfg["title"], "error": "not enough data — this pair needs daily quotes in your local cache; connect a sync (README \u203a Connecting your own services) or wait for the nightly one"}
     closes = [r["close"] for r in hist]
     last = closes[-1]
     fav_high = cfg["favorable"] == "high"

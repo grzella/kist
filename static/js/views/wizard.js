@@ -37,7 +37,7 @@ async function renderWizard(el) {
           <label style="display:block;cursor:pointer;margin-bottom:8px">
             <input type="radio" name="wzData" value="sample" checked>
             <b>Load sample data</b> <span class="muted">(fake persona "Alex Demo" — see how everything looks,
-            wipe later by deleting <code>.finance/</code>)</span>
+            clear it later with one click in Control Center → 🧨 Wipe all data)</span>
           </label>
           <label style="display:block;cursor:pointer">
             <input type="radio" name="wzData" value="empty">

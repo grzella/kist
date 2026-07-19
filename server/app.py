@@ -406,6 +406,25 @@ def app_config_save():
     return jsonify(planner.save_app_config(request.get_json(force=True)))
 
 
+@app.post("/api/data/wipe")
+def data_wipe():
+    """Fresh start: delete the local database (incl. settings) and re-init —
+    the wizard runs again. Requires an explicit confirm flag."""
+    if not request.get_json(force=True).get("confirm"):
+        return jsonify({"ok": False, "error": "confirm required"}), 400
+    import os as _os
+    import db as _db
+    root = _db.get_finance_dir()
+    for f in ("finance.db", "finance.db-wal", "finance.db-shm"):
+        try:
+            _os.remove(str(root / f))
+        except FileNotFoundError:
+            pass
+    _db.init_db()
+    planner.ensure_tables()
+    return jsonify({"ok": True})
+
+
 @app.post("/api/sample-data")
 def sample_data():
     """Load the demo persona into a fresh DB (wizard 'just show me around')."""

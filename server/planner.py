@@ -1396,7 +1396,8 @@ def tax_summary():
     rental_annual = rental_m * 12
     rental_tax = round(rental_annual * rate / 100, 0)
     zus_annual = round(zus * 12, 0)
-    biz_pit = round(biz_profit * 0.12, 0)
+    biz_rate = (_num(get_setting("tax_biz_rate_pct")) or 12) / 100
+    biz_pit = round(biz_profit * biz_rate, 0)
 
     items = [
         {"source": "Rental (lump-sum)", "rate": f"{rate}%",
@@ -1438,6 +1439,7 @@ def tax_summary():
     return {"items": items, "self_managed_annual": round(self_managed, 0),
             "calendar": calendar, "optimizations": optimizations,
             "assumptions": {"tax_rental_monthly": rental_m, "tax_rental_rate": rate,
+                        "tax_biz_rate_pct": (_num(get_setting("tax_biz_rate_pct")) or 12),
                             "tax_zus_monthly": zus}}
 
 
@@ -2291,7 +2293,7 @@ def _github_contribution_calendar(days=90):
     to = now.strftime("%Y-%m-%dT23:59:59Z")
     query = (
         'query { viewer { contributionsCollection(from: "%s", to: "%s") {'
-        ' totalCommitContributions totalPullRequestContributions'
+        ' login totalCommitContributions totalPullRequestContributions'
         ' totalIssueContributions totalPullRequestReviewContributions'
         ' contributionCalendar { weeks { contributionDays { date contributionCount } } }'
         ' } } }' % (frm, to))
@@ -2307,7 +2309,8 @@ def _github_contribution_calendar(days=90):
             counts[d["date"]] = d["contributionCount"]
     cache = {"at": datetime.now().isoformat(timespec="seconds"), "days": days,
              "counts": counts,
-             "totals": {"commits": data["totalCommitContributions"],
+             "totals": {"login": data.get("login"),
+                        "commits": data["totalCommitContributions"],
                         "prs": data["totalPullRequestContributions"],
                         "issues": data["totalIssueContributions"],
                         "reviews": data["totalPullRequestReviewContributions"]}}

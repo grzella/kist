@@ -134,7 +134,7 @@ async function renderOffers(el) {
       },
     }));
   } else {
-    btbl.innerHTML = '<div class="empty">Claude will fill in the barometer at the next monthly update.</div>';
+    btbl.innerHTML = '<div class="empty">No data yet — ask your AI assistant to research this month openings for your two role groups and insert the first row (see the note above).</div>';
   }
 
   document.getElementById("oAdd").addEventListener("click", async () => {

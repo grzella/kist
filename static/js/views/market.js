@@ -1,8 +1,14 @@
 function marketBriefHtml(b) {
   if (!b || !b.headline) {
     return `<div class="card"><h3 style="margin-top:0">🧭 Market brief</h3>
-      <div class="muted">No saved brief. Authored offline (Claude/own notes) and stored under the
-        <code>analysis_market_brief</code> setting — key moves, macro context, and a per-position stance.</div></div>`;
+      <div class="muted">No saved brief yet — key moves, macro context and a per-position stance,
+        authored by you or any AI assistant. Fill it with the box below.</div>
+      <details class="mt"><summary style="cursor:pointer"><b>➕ Fill it now</b> (paste JSON from any AI assistant)</summary>
+        <div class="muted mt" style="font-size:.85em">1) <b>Copy AI prompt</b> → paste into any assistant. 2) Paste the returned JSON below. 3) Save.</div>
+        <div class="row mt" style="gap:8px"><button data-copyprompt="analysis_market_brief">📋 Copy AI prompt</button><span class="muted" data-copied style="font-size:.8em"></span></div>
+        <textarea data-paste="analysis_market_brief" rows="5" class="mt" style="width:100%"></textarea>
+        <button class="primary mt" data-savejson="analysis_market_brief">Save</button>
+      </details></div>`;
   }
   const hi = (b.highlights || []).map((h) => `<div class="card" style="margin:0">
       <div style="font-size:1.4em">${h.icon || "•"}</div>
@@ -194,4 +200,19 @@ async function renderMarket(el) {
   });
 
   await loadTable();
+
+  const PROMPTS = {
+    analysis_market_brief: `Write a short market brief for my portfolio and return ONLY valid JSON: {"headline": str, "as_of": "YYYY-MM-DD", "highlights": [{"icon": "emoji", "title": str, "text": str}], "geopolitics": [{"title": str, "text": str}], "positions": [{"ticker": str, "stance": "hold|add|trim", "note": str}]}. Ask me for my tickers first.`,
+  };
+  el.querySelectorAll("[data-copyprompt]").forEach((b) => b.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(PROMPTS[b.dataset.copyprompt] || "");
+    const hint = b.parentElement.querySelector("[data-copied]"); if (hint) hint.textContent = "copied ✓";
+  }));
+  el.querySelectorAll("[data-savejson]").forEach((b) => b.addEventListener("click", async () => {
+    const key = b.dataset.savejson;
+    const raw = el.querySelector(`[data-paste="${key}"]`).value.trim();
+    try { JSON.parse(raw); } catch (e) { alert("That is not valid JSON: " + e.message); return; }
+    await api.put("/api/settings", { [key]: raw });
+    route();
+  }));
 }

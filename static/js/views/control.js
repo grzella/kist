@@ -73,13 +73,12 @@ async function renderControl(el) {
         </div>
       </div>
       <div class="card" style="border-left:4px solid #4c8dff;margin:0">
-        <h3 style="margin-top:0">🌐 Language</h3>
+        <h3 style="margin-top:0">🌐 Language &amp; currency</h3>
         <div class="row" style="align-items:center;gap:8px">
           <button class="${langGet() === "pl" ? "primary" : ""}" id="langPl">🇵🇱 Polski</button>
           <button class="${langGet() === "en" ? "primary" : ""}" id="langEn">🇬🇧 English</button>
-          <span class="muted" style="font-size:.85em">English is the native UI language; the Polish option translates navigation, Control and common labels.
-            Also via <code>?lang=pl</code>.</span>
-          <span style="margin-left:14px">💱 <select id="curSel">${["PLN","EUR","USD","GBP","CHF"].map((c) => `<option ${c === (window.APP_CURRENCY || "PLN") ? "selected" : ""}>${c}</option>`).join("")}</select></span>
+          <span>💱 <select id="curSel">${["PLN","EUR","USD","GBP","CHF"].map((c) => `<option ${c === (window.APP_CURRENCY || "PLN") ? "selected" : ""}>${c}</option>`).join("")}</select></span>
+          <span class="muted" style="font-size:.85em">English is the native UI; Polish translates common labels (<code>?lang=pl</code>). The currency applies everywhere amounts are shown.</span>
         </div>
       </div>
     </div>
@@ -147,6 +146,15 @@ async function renderControl(el) {
       <div id="bkOut" class="mt"></div>
     </div>` : ""}
 
+    <div class="card mt" style="border-left:4px solid #ff5c5c">
+      <h3 style="margin-top:0">🧨 Data — fresh start</h3>
+      <div class="row" style="align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="danger" id="wipeBtn">Wipe all data</button>
+        <span class="muted" style="font-size:.85em">Deletes the local database (sample or your own — everything, incl. settings)
+          and takes you back to the setup wizard. Backups in your synced folder are untouched.</span>
+      </div>
+    </div>
+
     <div class="card mt" style="border-left:4px solid ${secColor}">
       <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
         <h3 style="margin:0">🔐 Security &amp; tests
@@ -185,6 +193,11 @@ async function renderControl(el) {
   document.getElementById("demoToggle").addEventListener("click", () => toggleDemo(!demoOn()));
   document.getElementById("langPl").addEventListener("click", () => langSet("pl"));
   document.getElementById("langEn").addEventListener("click", () => langSet("en"));
+  document.getElementById("wipeBtn").addEventListener("click", async () => {
+    if (!confirm("Delete ALL local data (goals, wealth, settings…) and restart the wizard? Backups stay.")) return;
+    await api.post("/api/data/wipe", { confirm: true });
+    location.hash = "#wizard"; location.reload();
+  });
   document.getElementById("curSel").addEventListener("change", async (e) => {
     await api.post("/api/app-config", { base_currency: e.target.value });
     window.APP_CURRENCY = e.target.value; location.reload();

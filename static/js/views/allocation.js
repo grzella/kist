@@ -27,7 +27,7 @@ async function renderAllocation(el) {
     <div class="card mt" style="border-left:4px solid #ffd166">
       <h3 style="margin-top:0">💡 Takeaways and rebalancing</h3>
       <ul style="padding-left:18px">${d.hints.map((h) => `<li class="mt" style="font-size:.93em">${h}</li>`).join("")}</ul>
-      <div class="muted mt" style="font-size:.85em">The car (car) is counted as an asset, but it is a consumable (depreciates) — in reality "investment" wealth is more concentrated in real estate.</div>
+      <div class="muted mt" style="font-size:.85em">A vehicle counts as an asset here, but it is a consumable (it depreciates) — in reality "investment" wealth is usually more concentrated in real estate.</div>
     </div>`;
 
   const palette = ["#4c8dff", "#3ecf8e", "#ffd166", "#ff6b6b", "#a78bfa", "#f59e0b"];
