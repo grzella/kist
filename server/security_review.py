@@ -663,6 +663,31 @@ def _check_web_guard():
               "Route the endpoint through set_settings_public() (denylist)")
     except Exception as e:
         f("info", "pass", "Settings mass-assignment probe inconclusive", str(e)[:80])
+
+    # Fetch-metadata: a cross-site request (incl. <img>/<form>, which send NO
+    # Origin) is stamped Sec-Fetch-Site: cross-site by the browser and must be
+    # refused on /api — this closes side-effecting GETs (e.g. /api/health ->
+    # run_due, /api/security-scan, /api/git?fetch) that the Origin check (which
+    # only inspects mutating methods, and sees no Origin on <img>) would miss.
+    # The guard rejects BEFORE the route runs, so probing /api/health is safe.
+    xsite = c.get("/api/health", headers={"Sec-Fetch-Site": "cross-site"})
+    if xsite.status_code == 403:
+        f("info", "pass", "Cross-site GET (Sec-Fetch-Site) is rejected",
+          "a cross-site <img>/fetch GET to a side-effecting endpoint gets 403 — CSRF-on-GET blocked")
+    else:
+        f("high", "fail", "Cross-site GET reaches a side-effecting endpoint",
+          f"GET /api/health with Sec-Fetch-Site: cross-site returned {xsite.status_code}, expected 403 "
+          "— it triggers schedules.run_due (Supabase refresh, paid collectors, Drive backup)",
+          "In before_request reject Sec-Fetch-Site not in {same-origin,same-site,none} for /api/*")
+    same = c.get("/api/allocation", headers={"Sec-Fetch-Site": "same-origin"})
+    tool = c.get("/api/allocation")  # curl/n8n send no Sec-Fetch-Site
+    if same.status_code != 403 and tool.status_code != 403:
+        f("info", "pass", "Same-origin and header-less GETs still pass",
+          "Sec-Fetch-Site: same-origin and header-less (curl/n8n) requests are not blocked — no false positive")
+    else:
+        f("high", "fail", "Fetch-metadata guard is too strict",
+          f"same-origin GET={same.status_code}, tool GET={tool.status_code} — the frontend or local tools would break",
+          "Block only cross-site/cross-origin; allow same-origin/same-site/none and header-less")
     return out
 
 

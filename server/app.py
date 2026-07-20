@@ -98,6 +98,16 @@ def _guard_local_only():
     host = (request.host or "").lower()
     if host and host not in allowed:
         return jsonify({"error": "forbidden host — this app is loopback-only"}), 403
+    # Fetch-metadata CSRF defense: the browser stamps Sec-Fetch-Site on every
+    # request (including <img>/<form>, which carry NO Origin), and JS cannot forge
+    # it. Reject any cross-site hit to /api — this closes side-effecting GETs
+    # (e.g. /api/health -> run_due, /api/security-scan, /api/git?fetch) that the
+    # Origin check below misses (mutating methods only, and no Origin on <img>).
+    # Local tooling (curl, n8n, the test client) sends no Sec-Fetch-Site and passes.
+    if request.path.startswith("/api/"):
+        sfs = request.headers.get("Sec-Fetch-Site")
+        if sfs and sfs not in ("same-origin", "same-site", "none"):
+            return jsonify({"error": "cross-site request blocked"}), 403
     if request.method in ("POST", "PUT", "DELETE", "PATCH") and request.path.startswith("/api/"):
         origin = request.headers.get("Origin") or request.headers.get("Referer") or ""
         if origin:
