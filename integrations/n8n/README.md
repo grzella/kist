@@ -87,12 +87,35 @@ The same pattern works for any Supabase table with a date column.
 
 ## risk-radar-telegram-alert.json
 
-Recomputes the app's Risk Radar composite (VIX, gold, oil, EURUSD — same explicit
-thresholds) straight from Yahoo every morning and sends a Telegram message when the
-composite is hot (score ≥ 4/8). Runs entirely in n8n, so it works even when the app
-is off. Set a Telegram Bot credential and the `TELEGRAM_CHAT_ID` env var in n8n.
-The app can also send this alert itself when it's running — see README › Risk-radar
-Telegram alert.
+A ready-made workflow that pings your Telegram **only when the market risk radar goes
+hot** — so a nervous market reaches you without you opening the app.
+
+File: [`risk-radar-telegram-alert.json`](./risk-radar-telegram-alert.json)
+
+**Cloud-driven, laptop-independent.** It reads the same `market_prices` table in
+Supabase that the nightly sync keeps fresh, then recomputes the radar composite (VIX,
+gold, oil, EURUSD) with the **exact same thresholds** as `server/risk_radar.py` — the
+single source of truth. Because it reads the cloud, it fires **whether or not the local
+app is running**. Silence means calm/elevated; a message means hot.
+
+Flow: `Schedule (daily 9:20)` → `Code: compute radar from Supabase` →
+`IF: hot? (score ≥ 4/8)` → `Telegram: alert`.
+
+### Setup
+1. **Telegram bot + chat id** — same as the data-freshness section above.
+2. **Environment variables in n8n** (Settings → Variables, or the container env):
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY` (anon key is enough — read only), and
+   `TELEGRAM_CHAT_ID`.
+3. **Import** `risk-radar-telegram-alert.json`, set the **Telegram API** credential on
+   the alert node.
+4. **Test**: temporarily change `score >= 4` to `score >= 0` in the Code node and
+   **Execute Workflow** → you should get a message. Restore `>= 4`.
+5. **Enable**. Runs every morning at 9:20; change the time in the Schedule node.
+
+The four radar tickers (`^VIX`, `GC=F`, `CL=F`, `EURUSD=X`) must be in your market
+watchlist so the sync stores them in Supabase; otherwise those components read as
+"missing" and the score is understated. The app can also surface the same radar in the
+Market tab when it's running — this workflow is the always-on cloud counterpart.
 
 ## Market barometer collectors (JSearch + Apify)
 
