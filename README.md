@@ -107,12 +107,14 @@ Then set `LOCAL_LLM_KEY=<secret>` (and optionally `LOCAL_LLM_URL`) in `.env`. Co
 Retrieval is **BM25 (lexical) out of the box**, and upgrades to a **BM25 + semantic hybrid** if you point it at a local embedding server — then a question can match by *meaning* even with different words or across languages ("saving for retirement" finds your "pension account"):
 
 ```bash
-llama-server -hf <embedding-model-GGUF> --embeddings --port 8081
+# recommended: Qwen3-Embedding-0.6B (~600 MB, strong multilingual retrieval)
+llama-server -hf Qwen/Qwen3-Embedding-0.6B-GGUF:Q8_0 --embeddings --pooling last \
+  --batch-size 2048 --ubatch-size 2048 --port 8081
 # in .env:
 LOCAL_EMBED_URL=http://127.0.0.1:8081/v1
 ```
 
-Embeddings are stored per chunk (L2-normalized) and cosine similarity is computed in plain Python — no vector DB, no SQLite extension. Without an embedding server everything stays lexical; Control Center shows how many chunks are embedded.
+Embeddings are stored per chunk (L2-normalized) and cosine similarity is computed in plain Python — no vector DB, no SQLite extension. Without an embedding server everything stays lexical; Control Center shows how many chunks are embedded. Two hard-won notes: **raise `--ubatch-size`** — non-English text tokenizes densely, and with the default 512 a ~2000-char chunk can crash `llama-server` mid-reindex (the app then quietly falls back to lexical); and **run the server persistently** (launchd/systemd), because the self-maintaining reindex embeds new data only while the server is up — if it's down, the rebuilt index degrades to BM25 until the next reindex with the server alive. That degrade-and-recover contract is covered by a regression test.
 
 Optionally add a **third retrieval stage — a reranker**: the hybrid picks ~20 candidates, a small cross-encoder re-orders them by true relevance and only the top few reach the model. Same graceful pattern:
 

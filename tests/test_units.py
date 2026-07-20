@@ -132,6 +132,38 @@ def test_rag_semantic_hybrid_finds_without_lexical_overlap(client, monkeypatch):
     assert hits and hits[0]["text"] == "my pension account balance"
 
 
+def test_rag_reindex_embeds_new_data_and_degrades_without_server(client, monkeypatch):
+    """Embedding lifecycle: (1) reindex with a live server embeds EVERY chunk
+    (new data grows together with semantics, no manual step), (2) reindex with
+    the server down doesn't blow up — index rebuilt, embedded=0, engine degrades
+    to BM25, (3) server back + reindex recovers semantics fully. Guards the
+    'self-healing, gracefully degrading' contract."""
+    import rag
+    import llm_local
+
+    # (1) server alive → everything embedded, status = hybrid
+    monkeypatch.setattr(llm_local, "embed", lambda t: [0.1, 0.2, 0.3] if t else None)
+    n = rag.reindex()
+    st = rag.status()
+    assert n > 0 and st["embedded"] == st["chunks"] == n
+    assert "hybrid" in st["engine"]
+
+    # (2) server down → reindex passes, zero embeddings, engine = BM25 + hint
+    monkeypatch.setattr(llm_local, "embed", lambda t: None)
+    n2 = rag.reindex()
+    st2 = rag.status()
+    assert n2 == n and st2["embedded"] == 0
+    assert "BM25" in st2["engine"] and "hybrid" not in st2["engine"]
+    assert st2["hint"]  # UI explains how to enable semantics
+    assert rag.search("wealth goal loan", k=3)  # search still works (lexically)
+
+    # (3) server back → reindex recovers semantics in full
+    monkeypatch.setattr(llm_local, "embed", lambda t: [0.3, 0.2, 0.1] if t else None)
+    rag.reindex()
+    st3 = rag.status()
+    assert st3["embedded"] == st3["chunks"] and "hybrid" in st3["engine"]
+
+
 def test_rag_indexes_derived_sources(client):
     import rag
     rag.reindex()
