@@ -6,6 +6,20 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "server"))
 
 
+def test_commit_streak_grace_and_break():
+    """Regression: the streak must not reset just because there's no commit
+    today yet (grace until end of day). The old code started the loop at today
+    and returned 0 despite commits yesterday/the day before."""
+    import planner
+    from datetime import date
+    today = date(2026, 7, 20)
+    counts = {"2026-07-19": 57, "2026-07-18": 27}  # nothing today, but streak is alive
+    assert planner._commit_streak(counts, today) == 2
+    assert planner._commit_streak({**counts, "2026-07-20": 1}, today) == 3  # commit today → 3
+    assert planner._commit_streak({"2026-07-18": 5}, today) == 0  # empty yesterday+today breaks
+    assert planner._commit_streak({}, today) == 0  # no commits at all
+
+
 def test_rag_tokenizer_drops_stopwords_and_short():
     import rag
     toks = rag._tok("The mortgage on the house is 300000 EUR")

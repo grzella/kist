@@ -2468,6 +2468,20 @@ def _github_contribution_calendar(days=90):
     return cache
 
 
+def _commit_streak(counts, today):
+    """Consecutive days with ≥1 commit ending today. GitHub-style grace: while
+    you haven't committed today yet, the streak is still alive and counts from
+    yesterday — a missing commit today doesn't zero yesterday's streak (only an
+    empty yesterday+today breaks it). `counts` = {'YYYY-MM-DD': n}, `today` = date."""
+    from datetime import timedelta
+    streak = 0
+    i = 0 if counts.get(today.isoformat(), 0) > 0 else 1
+    while counts.get((today - timedelta(days=i)).isoformat(), 0) > 0:
+        streak += 1
+        i += 1
+    return streak
+
+
 def github_activity(days=90):
     """Daily commit activity across local git repos. Configure which repos and
     author to count via settings `commit_repos` (comma-separated absolute paths)
@@ -2532,12 +2546,7 @@ def github_activity(days=90):
         series.append({"date": dd, "count": counts.get(dd, 0)})
     total = sum(c["count"] for c in series)
     active_days = sum(1 for c in series if c["count"] > 0)
-    # streak (consecutive days up to today with ≥1 commit)
-    streak = 0
-    i = 0
-    while counts.get((today - timedelta(days=i)).isoformat(), 0) > 0:
-        streak += 1
-        i += 1
+    streak = _commit_streak(counts, today)
     # longest streak in the window
     best = cur = 0
     for c in series:
