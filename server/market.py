@@ -78,28 +78,80 @@ def _supabase_send(method, path, payload=None):
         return resp.status
 
 
-def refresh_cache():
-    """Pull all market_prices rows from Supabase into the local cache.
-    Paginated — Supabase caps a single response at 1000 rows."""
+def _cache_max_date():
     _ensure_cache()
-    rows, offset = [], 0
-    while True:
-        batch = _supabase_get(
-            "market_prices?select=ticker,date,close,currency&order=date.asc"
-            f"&limit=1000&offset={offset}")
-        rows.extend(batch)
-        if len(batch) < 1000:
-            break
-        offset += 1000
     with db.get_conn() as conn:
-        for r in rows:
+        r = conn.execute("select max(date) from market_prices_cache").fetchone()
+    return r[0] if r and r[0] else None
+
+
+def _stale_days(max_date=None):
+    """How many business days behind today the data is (0 = fresh)."""
+    from datetime import date as _date, datetime as _dt, timedelta
+    md = max_date or _cache_max_date()
+    if not md:
+        return 999
+    d = _dt.strptime(md, "%Y-%m-%d").date()
+    today, n, cur = _date.today(), 0, _date.today()
+    while cur > d:                        # count weekdays only (Mon–Fri)
+        if cur.weekday() < 5:
+            n += 1
+        cur -= timedelta(days=1)
+    return n
+
+
+def _topup_from_yahoo(max_tickers=60):
+    """SELF-HEALING: pull the last days from Yahoo (keyless) for EVERY ticker already
+    in the cache — so charts/radar stay fresh EVEN IF the upstream collector is down.
+    Best-effort: a failure for one ticker does not break the rest."""
+    _ensure_cache()
+    with db.get_conn() as conn:
+        tickers = [r[0] for r in conn.execute(
+            "select distinct ticker from market_prices_cache order by ticker limit ?",
+            (max_tickers,)).fetchall()]
+    filled = 0
+    for t in tickers:
+        try:
+            if fetch_yahoo_history(t, "1mo"):
+                filled += 1
+        except Exception:
+            continue
+    return filled
+
+
+def refresh_cache():
+    """Refresh the local cache: (1) Supabase (historical depth from the collector),
+    (2) SELF-HEAL from Yahoo for recent days — so data is fresh regardless of whether
+    the upstream collector is running. Also returns a freshness signal (stale_days)."""
+    _ensure_cache()
+    supa_rows, supa_ok = [], True
+    try:                                              # Supabase best-effort — a failure must not block Yahoo
+        offset = 0
+        while True:
+            batch = _supabase_get(
+                "market_prices?select=ticker,date,close,currency&order=date.asc"
+                f"&limit=1000&offset={offset}")
+            supa_rows.extend(batch)
+            if len(batch) < 1000:
+                break
+            offset += 1000
+    except Exception:
+        supa_ok = False
+    with db.get_conn() as conn:
+        for r in supa_rows:
             conn.execute(
                 "insert or replace into market_prices_cache (ticker,date,close,currency) values (?,?,?,?)",
                 (r["ticker"], r["date"], r["close"], r.get("currency", "USD")))
+        conn.commit()
+    # self-heal: fresh quotes straight from Yahoo (independent of the collector)
+    filled = _topup_from_yahoo()
+    with db.get_conn() as conn:
         conn.execute("insert or replace into market_meta (key,value) values ('last_sync',?)",
                      (datetime.now().isoformat(timespec="seconds"),))
         conn.commit()
-    return {"rows": len(rows)}
+    md = _cache_max_date()
+    return {"rows": len(supa_rows), "supabase_ok": supa_ok, "yahoo_topup": filled,
+            "data_through": md, "stale_days": _stale_days(md)}
 
 
 def auto_sync():

@@ -23,11 +23,25 @@ function marketBriefHtml(b, controls) {
       <td><b>${p.ticker}</b></td>
       <td><span class="badge" style="background:${stanceColor(p.stance)}22;color:${stanceColor(p.stance)}">${p.stance}</span></td>
       <td class="muted" style="font-size:.9em">${p.text}</td></tr>`).join("");
+  // freshness signal: how many business days the data is behind
+  const _staleDays = (dt) => {
+    if (!dt) return 999;
+    let d = new Date(dt + "T00:00:00"), today = new Date(new Date().toISOString().slice(0, 10) + "T00:00:00"), n = 0;
+    while (today > d) { if (today.getDay() % 6 !== 0) n++; today.setDate(today.getDate() - 1); }
+    return n;
+  };
+  const sd = _staleDays(b.data_through);
+  const staleBanner = sd >= 2
+    ? `<div class="card" style="border-left:4px solid #e05a5a;background:#e05a5a18;margin-bottom:10px">
+        <b style="color:#e05a5a">⚠️ Data is stale — ${sd} business days behind (through ${b.data_through || "?"})</b>
+        <div class="muted" style="font-size:.88em">Click “Refresh” (pulls fresh quotes from Yahoo). If that doesn't help, check the price collector. The insights below are computed from OLD data — don't trust them until the date is current.</div></div>`
+    : "";
   return `
-    <div class="card" style="border-left:4px solid #4c8dff">
+    ${staleBanner}
+    <div class="card" style="border-left:4px solid ${sd >= 2 ? "#e05a5a" : "#4c8dff"}">
       <div class="row" style="justify-content:space-between;align-items:baseline">
         <h3 style="margin:0">🧭 Market brief</h3>${controls || ""}
-        <span class="muted" style="font-size:.82em">quotes through <b>${b.data_through || "?"}</b> · analysis: ${b.as_of || "—"}${b.generated_by ? ` · ${b.generated_by}` : ""}${b.data_through && b.data_through < new Date().toISOString().slice(0,10) ? ' <span title="the price collector has not written today\'s session yet — insights are computed from the last available close">⏳</span>' : ""}</span>
+        <span class="muted" style="font-size:.82em">quotes through <b>${b.data_through || "?"}</b> · analysis: ${b.as_of || "—"}${b.generated_by ? ` · ${b.generated_by}` : ""}${sd >= 1 && sd < 2 ? ' <span title="today\'s session not written yet">⏳</span>' : ""}</span>
       </div>
       ${b.regime ? `<div class="mt" style="font-weight:600;color:#ffd166">${b.regime}</div>` : ""}
       <div class="mt">${b.headline}</div>

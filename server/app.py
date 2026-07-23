@@ -251,6 +251,11 @@ def market_refresh():
         out["forecast_cycle"] = market.record_and_score_forecasts()
     except Exception as e:
         out["forecast_cycle"] = {"error": str(e)[:80]}
+    try:  # advance the risk-radar history chart: record today's reading (idempotent per day)
+        import risk_radar
+        out["radar_snapshot"] = risk_radar.snapshot()
+    except Exception as e:
+        out["radar_snapshot"] = {"error": str(e)[:80]}
     return jsonify(out)
 
 
